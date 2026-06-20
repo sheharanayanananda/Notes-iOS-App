@@ -79,6 +79,11 @@ struct ChatView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+        .ignoresSafeArea(.container, edges: .bottom)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
