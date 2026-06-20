@@ -20,25 +20,62 @@ struct ChatView: View {
     @State private var creativity: Double = 0.2
     @State private var memorySize: MemoryLimit = .standard
     @State private var showModelConfigSheet = false
+    @State private var messages: [OllamaChatMessage] = []
+    @State private var isGenerating = false
+    @State private var errorMessage: String? = nil
     
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            
-            Image(systemName: "apple.intelligence")
-                .font(.system(size: 55))
-            
-            VStack(spacing: 10) {
-                Text("Slate Agent")
-                    .font(.system(size: 25, weight: .bold))
-                    .foregroundColor(.primary)
+        VStack(spacing: 0) {
+            if messages.isEmpty {
+                Spacer()
                 
-                Text("New Conversation")
-                    .font(.system(size: 15))
-                    .foregroundColor(.secondary)
+                Image(systemName: "apple.intelligence")
+                    .font(.system(size: 55))
+                
+                VStack(spacing: 10) {
+                    Text("Slate Agent")
+                        .font(.system(size: 25, weight: .bold))
+                        .foregroundColor(.primary)
+                    
+                    Text("New Conversation")
+                        .font(.system(size: 15))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 10)
+                
+                Spacer()
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 24) {
+                            ForEach(messages) { message in
+                                ChatBubbleView(message: message)
+                            }
+                            
+                            if isGenerating {
+                                ChatLoadingBubbleView()
+                                    .id("loading")
+                            }
+                            
+                            if let errorMessage = errorMessage {
+                                ChatErrorBubbleView(message: errorMessage)
+                                    .id("error")
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 20)
+                    }
+                    .onAppear {
+                        scrollToBottom(proxy: proxy)
+                    }
+                    .onChange(of: messages) {
+                        scrollToBottom(proxy: proxy)
+                    }
+                    .onChange(of: isGenerating) {
+                        scrollToBottom(proxy: proxy)
+                    }
+                }
             }
-            
-            Spacer()
             
             HStack(spacing: 12) {
                 Button(action: {
@@ -52,6 +89,10 @@ struct ChatView: View {
                 TextField("Ask Slate", text: $chatText)
                     .font(.system(size: 16))
                     .textFieldStyle(.plain)
+                    .disabled(isGenerating)
+                    .onSubmit {
+                        sendMessage()
+                    }
                 
                 // Voice input microphone button
                 Button(action: {
@@ -61,18 +102,20 @@ struct ChatView: View {
                         .font(.system(size: 20))
                         .foregroundColor(.primary)
                 }
+                .disabled(isGenerating)
                 
                 // Send Button
                 Button(action: {
-                    // Send Action
+                    sendMessage()
                 }) {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(colorScheme == .dark ? .black : .white)
                         .frame(width: 36, height: 36)
-                        .background(Color.primary)
+                        .background(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)
                         .clipShape(Circle())
                 }
+                .disabled(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
             }
             .padding()
             .padding(.leading, 5)
@@ -141,8 +184,11 @@ struct ChatView: View {
             
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
                     generator.impactOccurred()
+                    messages = []
+                    saveMessages([])
+                    errorMessage = nil
                     chatText = ""
                 }) {
                     Image(systemName: "square.and.pencil")
@@ -252,6 +298,9 @@ struct ChatView: View {
             }
             .tint(.primary)
             .presentationDetents([.medium, .large])
+        }
+        .onAppear {
+            messages = loadMessages()
         }
     }
     
@@ -366,6 +415,92 @@ struct ChatView: View {
             return "Maximum (32K): Best for referencing very long note histories and entire project files."
         }
     }
+    
+    private func getFileURL() -> URL? {
+        try? FileManager.default
+            .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("active_chat.json")
+    }
+    
+    private func saveMessages(_ msgs: [OllamaChatMessage]) {
+        guard let url = getFileURL() else { return }
+        do {
+            let data = try JSONEncoder().encode(msgs)
+            try data.write(to: url)
+        } catch {
+            print("Failed to save chat: \(error)")
+        }
+    }
+    
+    private func loadMessages() -> [OllamaChatMessage] {
+        guard let url = getFileURL(), FileManager.default.fileExists(atPath: url.path) else { return [] }
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([OllamaChatMessage].self, from: data)
+        } catch {
+            print("Failed to load chat: \(error)")
+            return []
+        }
+    }
+    
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        withAnimation(.easeOut(duration: 0.25)) {
+            if isGenerating {
+                proxy.scrollTo("loading", anchor: .bottom)
+            } else if errorMessage != nil {
+                proxy.scrollTo("error", anchor: .bottom)
+            } else if let last = messages.last {
+                proxy.scrollTo(last.id, anchor: .bottom)
+            }
+        }
+    }
+    
+    private func sendMessage() {
+        let trimmed = chatText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        chatText = ""
+        errorMessage = nil
+        
+        let userMessage = OllamaChatMessage(role: "user", content: trimmed)
+        messages.append(userMessage)
+        saveMessages(messages)
+        
+        let sendGenerator = UIImpactFeedbackGenerator(style: .light)
+        sendGenerator.impactOccurred()
+        
+        isGenerating = true
+        
+        Task {
+            do {
+                let client = OllamaClient(modelName: selectedModel.systemName)
+                
+                let responseMessage = try await client.chat(
+                    messages: messages,
+                    reasoningLevel: selectedModel.supportsThinking ? thinkingLevel : "off",
+                    creativity: creativity,
+                    memorySize: memorySize.rawValue
+                )
+                
+                await MainActor.run {
+                    messages.append(responseMessage)
+                    saveMessages(messages)
+                    isGenerating = false
+                    
+                    let replyGenerator = UIImpactFeedbackGenerator(style: .medium)
+                    replyGenerator.impactOccurred()
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isGenerating = false
+                    
+                    let errorGenerator = UINotificationFeedbackGenerator()
+                    errorGenerator.notificationOccurred(.error)
+                }
+            }
+        }
+    }
 }
 
 #Preview {
@@ -442,5 +577,96 @@ struct SliderTicksView: View {
         }
         .padding(.horizontal, 14)
         .allowsHitTesting(false)
+    }
+}
+
+struct ChatBubbleView: View {
+    let message: OllamaChatMessage
+    @Environment(\.colorScheme) private var colorScheme
+    
+    var body: some View {
+        if message.role == "user" {
+            HStack {
+                Spacer()
+                formattedText(message.content)
+                    .font(.system(size: 16))
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        } else {
+            formattedText(message.content)
+                .font(.system(size: 16))
+                .foregroundColor(.primary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    
+    @ViewBuilder
+    private func formattedText(_ content: String) -> some View {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        if let attrStr = try? AttributedString(markdown: content, options: options) {
+            Text(attrStr)
+        } else {
+            Text(content)
+        }
+    }
+}
+
+struct ChatLoadingBubbleView: View {
+    var body: some View {
+        ChatLoadingIndicator()
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct ChatErrorBubbleView: View {
+    let message: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 16))
+                .foregroundColor(.red)
+                .padding(.top, 2)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(message)
+                    .font(.system(size: 14))
+                    .foregroundColor(.red)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct ChatLoadingIndicator: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<3) { index in
+                Circle()
+                    .fill(Color.secondary.opacity(0.8))
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(isAnimating ? 1.0 : 0.5)
+                    .opacity(isAnimating ? 1.0 : 0.3)
+                    .animation(
+                        .easeInOut(duration: 0.6)
+                        .repeatForever()
+                        .delay(Double(index) * 0.2),
+                        value: isAnimating
+                    )
+            }
+        }
+        .padding(.top, 8)
+        .onAppear {
+            isAnimating = true
+        }
     }
 }

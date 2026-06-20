@@ -12,6 +12,39 @@ struct OllamaGenerateResponse: Decodable {
     let response: String
 }
 
+struct OllamaChatMessage: Codable, Equatable, Identifiable {
+    var id: String = UUID().uuidString
+    let role: String      // "user", "assistant", "system"
+    let content: String
+    
+    enum CodingKeys: String, CodingKey {
+        case role, content
+    }
+    
+    init(id: String = UUID().uuidString, role: String, content: String) {
+        self.id = id
+        self.role = role
+        self.content = content
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.role = try container.decode(String.self, forKey: .role)
+        self.content = try container.decode(String.self, forKey: .content)
+        self.id = UUID().uuidString
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(role, forKey: .role)
+        try container.encode(content, forKey: .content)
+    }
+}
+
+struct OllamaChatResponse: Decodable {
+    let message: OllamaChatMessage
+}
+
 enum OllamaError: Error, LocalizedError {
     case missingAPIKey
     case invalidResponse
@@ -95,6 +128,69 @@ final class OllamaClient {
         
         do {
             return try JSONDecoder().decode(OllamaGenerateResponse.self, from: data).response
+        } catch {
+            throw OllamaError.invalidResponse
+        }
+    }
+    
+    func chat(
+        messages: [OllamaChatMessage],
+        reasoningLevel: String? = nil,
+        creativity: Double? = nil,
+        memorySize: Int? = nil
+    ) async throws -> OllamaChatMessage {
+        guard let resolvedKey = apiKey, !resolvedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw OllamaError.missingAPIKey
+        }
+        
+        let url = URL(string: "/api/chat", relativeTo: baseURL)!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(resolvedKey)", forHTTPHeaderField: "Authorization")
+        
+        var options: [String: Any] = [
+            "num_predict": 1024
+        ]
+        if let creativity = creativity {
+            options["temperature"] = creativity
+        }
+        if let memorySize = memorySize {
+            options["num_ctx"] = memorySize
+        }
+        
+        var body: [String: Any] = [
+            "model": modelName,
+            "messages": messages.map { ["role": $0.role, "content": $0.content] },
+            "stream": false,
+            "options": options
+        ]
+        
+        if let reasoningLevel = reasoningLevel, reasoningLevel.lowercased() != "off" {
+            body["thinking"] = reasoningLevel.lowercased()
+        }
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            if httpResponse.statusCode == 401 {
+                throw OllamaError.apiError("Unauthorized: The API Key is incorrect or inactive.")
+            } else if httpResponse.statusCode == 429 {
+                throw OllamaError.apiError("Usage Limit Exceeded: You have reached your weekly Ollama usage limit.")
+            } else if httpResponse.statusCode != 200 {
+                if let errObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let errMsg = errObj["error"] as? String {
+                    throw OllamaError.apiError(errMsg)
+                }
+                throw OllamaError.apiError("API Error: HTTP Status \(httpResponse.statusCode)")
+            }
+        }
+        
+        do {
+            let chatResponse = try JSONDecoder().decode(OllamaChatResponse.self, from: data)
+            return chatResponse.message
         } catch {
             throw OllamaError.invalidResponse
         }
