@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ChatView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var activeTab: ContentView.TabIdentifier
     
     @State private var chatText = ""
@@ -16,58 +17,77 @@ struct ChatView: View {
     @State private var isDragging = false
     
     @State private var selectedModel: ModelMetadata = ModelMetadata.availableModels[0]
-    @State private var thinkingLevel: String = "Low"
-    @State private var creativity: Double = 0.2
+    @State private var thinkingLevel: String = "Off"
+    @State private var creativity: Double = 0.3
     @State private var memorySize: MemoryLimit = .standard
-    @State private var showModelConfigSheet = false
+    @State private var activePreset: ChatPreset = .balanced
     @State private var messages: [OllamaChatMessage] = []
     @State private var isGenerating = false
     @State private var errorMessage: String? = nil
     
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
             if messages.isEmpty {
-                Spacer()
-                
-                Image(systemName: "apple.intelligence")
-                    .font(.system(size: 55))
-                
-                VStack(spacing: 10) {
-                    Text("Slate Agent")
-                        .font(.system(size: 25, weight: .bold))
-                        .foregroundColor(.primary)
+                ZStack {
+                    VStack(spacing: 10) {
+                        Spacer()
+                        
+                        Image(systemName: "apple.intelligence")
+                            .font(.system(size: 55))
+                            .foregroundColor(.primary)
+                        
+                        VStack(spacing: 10) {
+                            Text("Slate Agent")
+                                .font(.system(size: 25, weight: .bold))
+                                .foregroundColor(.primary)
+                            
+                            Text("New Conversation")
+                                .font(.system(size: 15))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 10)
+                        
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .offset(y: -40)
                     
-                    Text("New Conversation")
-                        .font(.system(size: 15))
-                        .foregroundColor(.secondary)
+                    VStack {
+                        Spacer()
+                        inputCapsuleView
+                            .padding(.bottom, 16)
+                    }
                 }
-                .padding(.top, 10)
-                
-                Spacer()
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 24) {
-                            ForEach(messages) { message in
-                                if message.role == "assistant" && message.content.isEmpty && isGenerating {
-                                    ChatLoadingBubbleView()
-                                        .id("loading")
-                                } else {
-                                    ChatBubbleView(message: message)
+                        VStack(spacing: 0) {
+                            LazyVStack(spacing: 24) {
+                                ForEach(messages) { message in
+                                    if message.role == "assistant" && message.content.isEmpty && isGenerating {
+                                        ChatLoadingBubbleView()
+                                            .id("loading")
+                                    } else {
+                                        ChatBubbleView(message: message)
+                                    }
                                 }
+                                
+                                if let errorMessage = errorMessage {
+                                    ChatErrorBubbleView(message: errorMessage)
+                                        .id("error")
+                                    }
                             }
-                            
-                            if let errorMessage = errorMessage {
-                                ChatErrorBubbleView(message: errorMessage)
-                                    .id("error")
-                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 20)
                             
                             Color.clear
                                 .frame(height: 1)
                                 .id("bottomSpacer")
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 20)
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        inputCapsuleView
+                            .padding(.bottom, 16)
                     }
                     .onAppear {
                         scrollToBottom(proxy: proxy)
@@ -80,62 +100,6 @@ struct ChatView: View {
                     }
                 }
             }
-            
-            HStack(spacing: 12) {
-                Button(action: {
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 20))
-                        .foregroundColor(.primary)
-                }
-                
-                // Chat input textfield
-                TextField("Ask Slate", text: $chatText)
-                    .font(.system(size: 16))
-                    .textFieldStyle(.plain)
-                    .disabled(isGenerating)
-                    .onSubmit {
-                        sendMessage()
-                    }
-                
-                // Voice input microphone button
-                Button(action: {
-                    // Microphone Action
-                }) {
-                    Image(systemName: "mic")
-                        .font(.system(size: 20))
-                        .foregroundColor(.primary)
-                }
-                .disabled(isGenerating)
-                
-                // Send Button
-                Button(action: {
-                    sendMessage()
-                }) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? .black : .white)
-                        .frame(width: 36, height: 36)
-                        .background(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)
-                        .clipShape(Circle())
-                }
-                .disabled(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
-            }
-            .padding()
-            .padding(.leading, 5)
-            .background(
-                Capsule()
-                    .fill(colorScheme == .dark ? Color(red: 38/255, green: 38/255, blue: 38/255) : Color(red: 245/255, green: 245/255, blue: 245/255))
-                    .overlay(
-                        Capsule()
-                            .stroke(colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.1), lineWidth: 1)
-                    )
-            )
-            .scaleEffect(x: liquidScaleX, y: liquidScaleY)
-            .offset(x: dragOffset.width * 0.22, y: dragOffset.height * 0.12)
-            .simultaneousGesture(dragGesture)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -143,6 +107,12 @@ struct ChatView: View {
         }
         .ignoresSafeArea(.container, edges: .bottom)
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: scenePhase) { oldValue, newValue in
+            if newValue == .background || newValue == .inactive {
+                isDragging = false
+                dragOffset = .zero
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {
@@ -155,25 +125,23 @@ struct ChatView: View {
             }
             
             ToolbarItem(placement: .principal) {
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    showModelConfigSheet = true
-                }) {
+                Menu {
+                    Picker("Model", selection: $selectedModel) {
+                        ForEach(ModelMetadata.availableModels) { model in
+                            Text(model.id).tag(model)
+                        }
+                    }
+                    
+                    Picker("Presets", selection: $activePreset) {
+                        ForEach(ChatPreset.allCases) { preset in
+                            Text(preset.title).tag(preset)
+                        }
+                    }
+                } label: {
                     HStack(spacing: 4) {
-                        Text(selectedModel.id)
+                        Text("\(selectedModel.id) • \(activePreset.shortName)")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(.primary)
-                        
-                        if selectedModel.supportsThinking {
-                            Text("•")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                            
-                            Text(thinkingLevel)
-                                .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(.secondary)
-                        }
                         
                         Image(systemName: "chevron.down")
                             .font(.system(size: 10, weight: .bold))
@@ -183,7 +151,6 @@ struct ChatView: View {
                     .padding(.horizontal, 8)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
             }
             
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -201,149 +168,78 @@ struct ChatView: View {
                 }
             }
         }
-        .sheet(isPresented: $showModelConfigSheet) {
-            NavigationStack {
-                Form {
-                    Section(footer: Text(selectedModel.description)) {
-                        Picker("Model", selection: $selectedModel) {
-                            ForEach(ModelMetadata.availableModels) { model in
-                                Text(model.id).tag(model)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .onChange(of: selectedModel) {
-                            let generator = UIImpactFeedbackGenerator(style: .light)
-                            generator.impactOccurred()
-                            selectModel(selectedModel)
-                        }
-                    }
-                    
-                    if selectedModel.supportsThinking {
-                        Section(
-                            header: Text("Reasoning"),
-                            footer: Text("Controls how deeply the agent reasons before organizing notes or connecting to other apps.")
-                        ) {
-                            Picker("Reasoning", selection: $thinkingLevel) {
-                                Text("Off").tag("Off")
-                                Text("Low").tag("Low")
-                                Text("Medium").tag("Medium")
-                                Text("High").tag("High")
-                            }
-                            .pickerStyle(.menu)
-                            .onChange(of: thinkingLevel) {
-                                let generator = UIImpactFeedbackGenerator(style: .light)
-                                generator.impactOccurred()
-                            }
-                        }
-                    }
-                    
-                    Section(
-                        footer: Text(creativityDescription)
-                    ) {
-                        VStack(spacing: 8) {
-                            HStack {
-                                Text("Creativity")
-                                Spacer()
-                                Text(String(format: "%.1f", creativity))
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            HStack {
-                                Image(systemName: "pencil.circle")
-                                    .foregroundColor(.secondary)
-                                ZStack {
-                                    SliderTicksView(numberOfSteps: 10)
-                                        .offset(y: 8)
-                                    Slider(
-                                        value: creativitySliderBinding,
-                                        in: 0.0...1.0,
-                                        step: 0.1
-                                    )
-                                }
-                                Image(systemName: "sparkles")
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                    
-                    Section(
-                        footer: Text(memorySizeDescription)
-                    ) {
-                        VStack(spacing: 8) {
-                            HStack {
-                                Text("Memory Size")
-                                Spacer()
-                                Text(memorySize.displayName)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            HStack {
-                                Image(systemName: "memorychip")
-                                    .foregroundColor(.secondary)
-                                
-                                let cases = MemoryLimit.allCases.filter { $0 <= selectedModel.maxMemorySize }
-                                ZStack {
-                                    SliderTicksView(numberOfSteps: cases.count - 1)
-                                        .offset(y: 8)
-                                    Slider(
-                                        value: memorySizeSliderBinding,
-                                        in: 0.0...Double(cases.count - 1),
-                                        step: 1.0
-                                    )
-                                }
-                                
-                                Image(systemName: "cpu")
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                }
-                .navigationBarTitleDisplayMode(.inline)
-            }
-            .tint(.primary)
-            .presentationDetents([.medium, .large])
-        }
         .onAppear {
             messages = loadMessages()
+            applyPreset(activePreset)
+        }
+        .onChange(of: selectedModel) {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            selectModel(selectedModel)
+        }
+        .onChange(of: activePreset) {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            applyPreset(activePreset)
         }
     }
     
-    private var creativitySliderBinding: Binding<Double> {
-        Binding(
-            get: { creativity },
-            set: { newValue in
-                let rounded = round(newValue * 10) / 10.0
-                if rounded != creativity {
-                    creativity = rounded
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                }
+    @ViewBuilder
+    private var inputCapsuleView: some View {
+        HStack(spacing: 12) {
+            Button(action: {
+            }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 20))
+                    .foregroundColor(.primary)
             }
-        )
-    }
-    
-    private var memorySizeSliderBinding: Binding<Double> {
-        Binding(
-            get: {
-                let cases = MemoryLimit.allCases.filter { $0 <= selectedModel.maxMemorySize }
-                if let index = cases.firstIndex(of: memorySize) {
-                    return Double(index)
+            
+            // Chat input textfield
+            TextField("Ask Slate", text: $chatText)
+                .font(.system(size: 16))
+                .textFieldStyle(.plain)
+                .disabled(isGenerating)
+                .onSubmit {
+                    sendMessage()
                 }
-                return 0.0
-            },
-            set: { newValue in
-                let cases = MemoryLimit.allCases.filter { $0 <= selectedModel.maxMemorySize }
-                let index = Int(round(newValue))
-                if index >= 0 && index < cases.count {
-                    let newLimit = cases[index]
-                    if newLimit != memorySize {
-                        memorySize = newLimit
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                    }
-                }
+            
+            // Voice input microphone button
+            Button(action: {
+                // Microphone Action
+            }) {
+                Image(systemName: "mic")
+                    .font(.system(size: 20))
+                    .foregroundColor(.primary)
             }
+            .disabled(isGenerating)
+            
+            // Send Button
+            Button(action: {
+                sendMessage()
+            }) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(colorScheme == .dark ? .black : .white)
+                    .frame(width: 36, height: 36)
+                    .background(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)
+                    .clipShape(Circle())
+            }
+            .disabled(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
+        }
+        .padding()
+        .padding(.leading, 5)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    Capsule()
+                        .stroke(colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.1), lineWidth: 1)
+                )
         )
+        .scaleEffect(x: liquidScaleX, y: liquidScaleY)
+        .offset(x: dragOffset.width * 0.22, y: dragOffset.height * 0.12)
+        .simultaneousGesture(dragGesture)
+        .padding(.horizontal, 16)
     }
     
     private var liquidScaleX: CGFloat {
@@ -357,7 +253,7 @@ struct ChatView: View {
     }
     
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 3)
+        DragGesture(minimumDistance: 15)
             .onChanged { value in
                 if !isDragging {
                     isDragging = true
@@ -372,7 +268,9 @@ struct ChatView: View {
                     generator.impactOccurred(intensity: 0.5)
                 }
                 
-                dragOffset = value.translation
+                let horizontalTranslation = value.translation.width
+                let verticalTranslation = value.translation.height * 0.15
+                dragOffset = CGSize(width: horizontalTranslation, height: verticalTranslation)
             }
             .onEnded { _ in
                 if isDragging {
@@ -388,35 +286,25 @@ struct ChatView: View {
     
     private func selectModel(_ model: ModelMetadata) {
         selectedModel = model
-        creativity = model.defaultCreativity
-        if memorySize > model.maxMemorySize {
-            memorySize = model.maxMemorySize
-        }
-        if !model.supportsThinking {
-            thinkingLevel = "Off"
-        }
+        applyPreset(activePreset)
     }
     
-    private var creativityDescription: String {
-        if creativity <= 0.3 {
-            return "Precise: Best for factual notes, summaries, logic, and automated action steps."
-        } else if creativity <= 0.6 {
-            return "Balanced: A blend of factual accuracy and natural writing style."
+    private func applyPreset(_ preset: ChatPreset) {
+        activePreset = preset
+        creativity = preset.creativity
+        
+        // Clamp memory size to model's max memory size
+        if preset.memorySize > selectedModel.maxMemorySize {
+            memorySize = selectedModel.maxMemorySize
         } else {
-            return "Creative: Best for brainstorming ideas, creative writing, and expanding on note drafts."
+            memorySize = preset.memorySize
         }
-    }
-    
-    private var memorySizeDescription: String {
-        switch memorySize {
-        case .short:
-            return "Short (4K): Best for quick replies and editing single short notes."
-        case .standard:
-            return "Standard (8K): Good for average conversations and referencing standard notes."
-        case .detailed:
-            return "Detailed (16K): Best for working with multiple notes and linking content together."
-        case .maximum:
-            return "Maximum (32K): Best for referencing very long note histories and entire project files."
+        
+        // Check if model supports thinking
+        if selectedModel.supportsThinking {
+            thinkingLevel = preset.thinkingLevel
+        } else {
+            thinkingLevel = "Off"
         }
     }
     
@@ -570,33 +458,66 @@ enum MemoryLimit: Int, Comparable, CaseIterable, Identifiable {
 
 extension ModelMetadata {
     static let availableModels: [ModelMetadata] = [
-        ModelMetadata(id: "Gemma 4", systemName: "gemma4:31b", description: "Best for complex note organization, writing code, and automated connections to other apps.", supportsThinking: true, maxMemorySize: .maximum, defaultCreativity: 0.2),
-        ModelMetadata(id: "Qwen 3.5", systemName: "qwen3.5", description: "Great all-around helper for summarizing content, analyzing files, and logical reasoning.", supportsThinking: true, maxMemorySize: .maximum, defaultCreativity: 0.3),
-        ModelMetadata(id: "Mistral 3", systemName: "mistral3", description: "Best for creative writing, formatting documents, and drafting outlines or email replies.", supportsThinking: false, maxMemorySize: .detailed, defaultCreativity: 0.7),
-        ModelMetadata(id: "Gemini 3 Flash Preview", systemName: "gemini3-flash", description: "Best for quick replies, fast note searches, and instant text extraction from scans.", supportsThinking: false, maxMemorySize: .maximum, defaultCreativity: 0.4),
-        ModelMetadata(id: "Gemma 3", systemName: "gemma3", description: "A lightweight option for quick note editing, spelling fixes, and simple text updates.", supportsThinking: false, maxMemorySize: .standard, defaultCreativity: 0.3)
+        ModelMetadata(id: "Gemma 4", systemName: "gemma4:31b", description: "Best for complex note organization, writing code, and automated connections to other apps.", supportsThinking: true, maxMemorySize: .maximum, defaultCreativity: 0.2)
     ]
 }
 
-struct SliderTicksView: View {
-    let numberOfSteps: Int
+enum ChatPreset: String, CaseIterable, Identifiable {
+    case balanced = "Balanced Assistant"
+    case deepReasoning = "Deep Reasoning"
+    case creativeDrafts = "Creative Drafts"
+    case quickCorrections = "Quick Corrections"
     
-    var body: some View {
-        HStack(spacing: 0) {
-            Spacer(minLength: 0)
-            if numberOfSteps > 1 {
-                ForEach(1..<numberOfSteps, id: \.self) { _ in
-                    Circle()
-                        .fill(Color.secondary.opacity(0.35))
-                        .frame(width: 3.5, height: 3.5)
-                    Spacer(minLength: 0)
-                }
-            }
+    var id: String { self.rawValue }
+    
+    var title: String { self.rawValue }
+    
+    var shortName: String {
+        switch self {
+        case .balanced: return "Balanced"
+        case .deepReasoning: return "Deep Reasoning"
+        case .creativeDrafts: return "Creative"
+        case .quickCorrections: return "Quick Fixes"
         }
-        .padding(.horizontal, 14)
-        .allowsHitTesting(false)
+    }
+    
+    var subtitle: String {
+        switch self {
+        case .balanced: return "Balanced creativity, standard 8K memory"
+        case .deepReasoning: return "High reasoning depth, maximum 32K memory"
+        case .creativeDrafts: return "High creativity, detailed 16K memory"
+        case .quickCorrections: return "Low creativity, fast 4K memory"
+        }
+    }
+    
+    var creativity: Double {
+        switch self {
+        case .balanced: return 0.3
+        case .deepReasoning: return 0.2
+        case .creativeDrafts: return 0.8
+        case .quickCorrections: return 0.1
+        }
+    }
+    
+    var memorySize: MemoryLimit {
+        switch self {
+        case .balanced: return .standard
+        case .deepReasoning: return .maximum
+        case .creativeDrafts: return .detailed
+        case .quickCorrections: return .short
+        }
+    }
+    
+    var thinkingLevel: String {
+        switch self {
+        case .balanced: return "Off"
+        case .deepReasoning: return "High"
+        case .creativeDrafts: return "Low"
+        case .quickCorrections: return "Off"
+        }
     }
 }
+
 
 struct ChatBubbleView: View {
     let message: OllamaChatMessage

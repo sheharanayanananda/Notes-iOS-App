@@ -15,7 +15,7 @@ enum MarkdownBlock: Identifiable, Equatable {
         case .header(let level, let text): return "h-\(level)-\(text.hashValue)"
         case .blockquote(let text): return "bq-\(text.hashValue)"
         case .list(let items): return "list-\(items.map { $0.text }.joined().hashValue)"
-        case .code(let language, let code): return "code-\(code.hashValue)"
+        case .code(_, let code): return "code-\(code.hashValue)"
         case .table(let headers, let rows): return "table-\((headers.joined() + rows.flatMap { $0 }.joined()).hashValue)"
         case .thematicBreak: return "hr"
         case .latex(let isDisplay, let equation): return "latex-\(isDisplay)-\(equation.hashValue)"
@@ -402,17 +402,16 @@ struct ListBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(items) { item in
-                HStack(alignment: .top, spacing: 6) {
+                HStack(alignment: .center, spacing: 8) {
                     if item.level > 0 {
                         Spacer()
                             .frame(width: CGFloat(item.level) * 16)
                     }
                     
                     if let checkbox = item.checkboxState {
-                        Image(systemName: checkbox == .checked ? "checkmark.square.fill" : "square")
-                            .foregroundColor(checkbox == .checked ? .green : .secondary)
-                            .font(.system(size: 14))
-                            .padding(.top, 2)
+                        Image(systemName: checkbox == .checked ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(checkbox == .checked ? Color.blue : Color.secondary.opacity(0.6))
+                            .font(.system(size: 20))
                     } else {
                         switch item.type {
                         case .bullet:
@@ -505,40 +504,57 @@ struct TableBlockView: View {
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 0) {
-                    ForEach(0..<headers.count, id: \.self) { index in
-                        FormattedText(headers[index])
-                            .font(.system(size: 14, weight: .bold))
-                            .padding(10)
-                            .frame(minWidth: 100, alignment: .leading)
-                            .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.92))
-                            .border(Color.secondary.opacity(0.3), width: 0.5)
-                    }
+        if headers.count <= 3 {
+            gridTable
+        } else {
+            ScrollView(.horizontal, showsIndicators: true) {
+                gridTable
+                    .frame(minWidth: CGFloat(headers.count) * 110)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var gridTable: some View {
+        Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+            // Header row
+            GridRow {
+                ForEach(0..<headers.count, id: \.self) { index in
+                    FormattedText(headers[index])
+                        .font(.system(size: 14, weight: .bold))
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.90))
+                        .border(Color.secondary.opacity(0.3), width: 0.5)
                 }
-                
-                ForEach(0..<rows.count, id: \.self) { rowIndex in
-                    let row = rows[rowIndex]
-                    HStack(spacing: 0) {
-                        ForEach(0..<headers.count, id: \.self) { colIndex in
-                            let text = colIndex < row.count ? row[colIndex] : ""
-                            FormattedText(text)
-                                .font(.system(size: 14))
-                                .padding(10)
-                                .frame(minWidth: 100, alignment: .leading)
-                                .background(
-                                    rowIndex % 2 == 0
-                                    ? (colorScheme == .dark ? Color(white: 0.08) : Color.white)
-                                    : (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.97))
-                                )
-                                .border(Color.secondary.opacity(0.2), width: 0.5)
-                        }
+            }
+            
+            // Data rows
+            ForEach(0..<rows.count, id: \.self) { rowIndex in
+                let row = rows[rowIndex]
+                GridRow {
+                    ForEach(0..<headers.count, id: \.self) { colIndex in
+                        let text = colIndex < row.count ? row[colIndex] : ""
+                        FormattedText(text)
+                            .font(.system(size: 14))
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                rowIndex % 2 == 0
+                                ? (colorScheme == .dark ? Color(white: 0.08) : Color.white)
+                                : (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.97))
+                            )
+                            .border(Color.secondary.opacity(0.2), width: 0.5)
                     }
                 }
             }
-            .border(Color.secondary.opacity(0.3), width: 1)
         }
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+        )
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
     }
 }
@@ -682,6 +698,119 @@ struct LaTeXWebViewRepresentable: UIViewRepresentable {
 
 // MARK: - Inline Formatting View
 
+// MARK: - Inline Formatting View
+
+enum InlineToken: Equatable {
+    case text(String)
+    case inlineMath(String)
+    case displayMath(String)
+}
+
+func tokenize(_ text: String) -> [InlineToken] {
+    var tokens: [InlineToken] = []
+    var currentText = ""
+    let characters = Array(text)
+    var i = 0
+    
+    while i < characters.count {
+        if i < characters.count - 1 && characters[i] == "$" && characters[i+1] == "$" {
+            if !currentText.isEmpty {
+                tokens.append(.text(currentText))
+                currentText = ""
+            }
+            
+            var j = i + 2
+            var found = false
+            while j < characters.count - 1 {
+                if characters[j] == "$" && characters[j+1] == "$" {
+                    found = true
+                    break
+                }
+                j += 1
+            }
+            
+            if found {
+                let formula = String(characters[(i+2)..<j])
+                tokens.append(.displayMath(formula))
+                i = j + 2
+            } else {
+                currentText.append("$$")
+                i += 2
+            }
+        } else if characters[i] == "$" {
+            if !currentText.isEmpty {
+                tokens.append(.text(currentText))
+                currentText = ""
+            }
+            
+            var j = i + 1
+            var found = false
+            while j < characters.count {
+                if characters[j] == "$" {
+                    found = true
+                    break
+                }
+                j += 1
+            }
+            
+            if found {
+                let formula = String(characters[(i+1)..<j])
+                tokens.append(.inlineMath(formula))
+                i = j + 1
+            } else {
+                currentText.append("$")
+                i += 1
+            }
+        } else {
+            currentText.append(characters[i])
+            i += 1
+        }
+    }
+    
+    if !currentText.isEmpty {
+        tokens.append(.text(currentText))
+    }
+    
+    return tokens
+}
+
+func formatMathString(_ formula: String) -> String {
+    var result = formula
+    
+    let superscripts = [
+        "^0": "⁰", "^1": "¹", "^2": "²", "^3": "³", "^4": "⁴",
+        "^5": "⁵", "^6": "⁶", "^7": "⁷", "^8": "⁸", "^9": "⁹",
+        "^+": "⁺", "^-": "⁻", "^=": "⁼", "^(": "⁽", "^)": "⁾",
+        "^n": "ⁿ", "^x": "ˣ", "^i": "ⁱ"
+    ]
+    let subscripts = [
+        "_0": "₀", "_1": "₁", "_2": "₂", "_3": "₃", "_4": "₄",
+        "_5": "₅", "_6": "₆", "_7": "₇", "_8": "₈", "_9": "₉",
+        "_+": "₊", "_-": "₋", "_=": "₌", "_(": "₍", "_)": "₎"
+    ]
+    let symbols = [
+        "\\pm": "±", "\\times": "×", "\\div": "÷", "\\alpha": "α",
+        "\\beta": "β", "\\gamma": "γ", "\\theta": "θ", "\\pi": "π",
+        "\\infty": "∞", "\\neq": "≠", "\\leq": "≤", "\\geq": "≥",
+        "\\delta": "δ", "\\lambda": "λ", "\\mu": "μ", "\\sigma": "σ",
+        "\\phi": "φ", "\\omega": "ω", "\\partial": "∂", "\\nabla": "∇",
+        "\\sum": "∑", "\\prod": "∏", "\\int": "∫", "\\sqrt": "√",
+        "\\approx": "≈", "\\propto": "∝"
+    ]
+    
+    for (key, val) in superscripts {
+        result = result.replacingOccurrences(of: key, with: val)
+    }
+    for (key, val) in subscripts {
+        result = result.replacingOccurrences(of: key, with: val)
+    }
+    for (key, val) in symbols {
+        result = result.replacingOccurrences(of: key, with: val)
+    }
+    
+    return result
+}
+
 struct FormattedText: View {
     let content: String
     
@@ -690,22 +819,71 @@ struct FormattedText: View {
     }
     
     var body: some View {
-        let parts = content.components(separatedBy: "$")
-        if parts.count >= 3 {
-            var result = Text("")
-            for (index, part) in parts.enumerated() {
-                if index % 2 == 1 {
-                    result = result + Text(part)
-                        .font(.system(size: 16, weight: .medium, design: .serif))
-                        .italic()
-                } else {
-                    result = result + parseInlineMarkdown(part)
+        let elements = preprocess(content)
+        
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(elements) { element in
+                switch element.type {
+                case .inline(let tokens):
+                    renderInline(tokens)
+                case .display(let formula):
+                    LaTeXMathView(equation: formula, isDisplay: true)
                 }
             }
-            return result
-        } else {
-            return parseInlineMarkdown(content)
         }
+    }
+    
+    private struct ParagraphElement: Identifiable {
+        let id = UUID()
+        enum ElementType {
+            case inline([InlineToken])
+            case display(String)
+        }
+        let type: ElementType
+    }
+    
+    private func preprocess(_ text: String) -> [ParagraphElement] {
+        let tokens = tokenize(text)
+        var elements: [ParagraphElement] = []
+        var currentInline: [InlineToken] = []
+        
+        for token in tokens {
+            switch token {
+            case .displayMath(let formula):
+                if !currentInline.isEmpty {
+                    elements.append(ParagraphElement(type: .inline(currentInline)))
+                    currentInline.removeAll()
+                }
+                elements.append(ParagraphElement(type: .display(formula)))
+            default:
+                currentInline.append(token)
+            }
+        }
+        
+        if !currentInline.isEmpty {
+            elements.append(ParagraphElement(type: .inline(currentInline)))
+        }
+        
+        return elements
+    }
+    
+    private func renderInline(_ tokens: [InlineToken]) -> Text {
+        var result = Text("")
+        for token in tokens {
+            switch token {
+            case .text(let str):
+                result = Text("\(result)\(parseInlineMarkdown(str))")
+            case .inlineMath(let formula):
+                let formatted = formatMathString(formula)
+                let mathText = Text(formatted)
+                    .font(.system(size: 16, weight: .medium, design: .serif))
+                    .italic()
+                result = Text("\(result)\(mathText)")
+            default:
+                break
+            }
+        }
+        return result
     }
     
     private func parseInlineMarkdown(_ text: String) -> Text {
