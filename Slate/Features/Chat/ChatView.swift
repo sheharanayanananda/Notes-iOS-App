@@ -33,7 +33,7 @@ struct ChatView: View {
                     .font(.system(size: 25, weight: .bold))
                     .foregroundColor(.primary)
                 
-                Text("Conversational Agentic Chat View coming soon\nin V2.")
+                Text("New Conversation")
                     .font(.system(size: 15))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

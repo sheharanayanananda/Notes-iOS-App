@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var editingNote: SlateModel? = nil
     @State private var quickTool: ToolType? = nil
     @State private var showSettings = false
+    @State private var showChatView = false
 
     @State private var isSettingsVisible = false
     @State private var isSettingsInteractable = false
@@ -94,14 +95,19 @@ struct ContentView: View {
                     }
                     
                     Tab("Chat", systemImage: "apple.intelligence", value: .intelligence, role: .search) {
-                        NavigationStack {
-                            ChatView(activeTab: $activeTab)
-                        }
-                        .toolbar(.hidden, for: .tabBar)
+                        Color.clear
                     }
                 }
                 .sheet(item: $quickTool) { tool in
                     ToolSheet(type: tool, editingNote: $editingNote, activeTab: $activeTab)
+                }
+
+                if showChatView {
+                    NavigationStack {
+                        ChatView(activeTab: $activeTab)
+                    }
+                    .transition(.move(edge: .trailing))
+                    .zIndex(2)
                 }
 
 
@@ -166,6 +172,25 @@ struct ContentView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage ?? "An unknown error occurred.")
+            }
+            .onChange(of: activeTab) { oldValue, newValue in
+                if newValue == .intelligence {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.prepare()
+                    generator.impactOccurred()
+                    
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) {
+                        showChatView = true
+                    }
+                } else if oldValue == .intelligence {
+                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.prepare()
+                    generator.impactOccurred()
+                    
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.92)) {
+                        showChatView = false
+                    }
+                }
             }
         }
     }
