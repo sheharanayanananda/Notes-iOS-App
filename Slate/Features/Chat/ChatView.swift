@@ -11,44 +11,46 @@ struct ChatView: View {
     @Binding var activeTab: ContentView.TabIdentifier
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 24) {
+            Spacer()
+            
             Image(systemName: "apple.intelligence")
-                .font(.system(size: 60))
+                .font(.system(size: 50, weight: .regular))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.55, green: 0.35, blue: 0.95),
-                            Color(red: 0.35, green: 0.45, blue: 0.95),
-                            Color(red: 0.25, green: 0.65, blue: 0.95)
+                            Color(red: 0.6, green: 0.4, blue: 0.95),
+                            Color(red: 0.35, green: 0.5, blue: 0.95),
+                            Color(red: 0.2, green: 0.7, blue: 0.95)
                         ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
                 )
             
-            Text("Slate AI Agent")
-                .font(.title2)
-                .bold()
+            VStack(spacing: 10) {
+                Text("Slate Agent")
+                    .font(.system(size: 25, weight: .bold))
+                    .foregroundColor(.primary)
+                
+                Text("Conversational Agentic Chat View coming soon\nin V2.")
+                    .font(.system(size: 15))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 32)
             
-            Text("Conversational Agentic Chat View coming soon in V2.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
                     activeTab = .notes
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
                     }
-                    .foregroundColor(.primary)
                 }
             }
         }
@@ -56,7 +58,5 @@ struct ChatView: View {
 }
 
 #Preview {
-    NavigationStack {
-        ChatView(activeTab: .constant(.intelligence))
-    }
+    ChatView(activeTab: .constant(.notes))
 }
