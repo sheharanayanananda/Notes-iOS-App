@@ -45,6 +45,16 @@ struct OllamaChatResponse: Decodable {
     let message: OllamaChatMessage
 }
 
+struct OllamaChatStreamChunk: Decodable {
+    let message: OllamaChatStreamMessageChunk?
+    let done: Bool?
+}
+
+struct OllamaChatStreamMessageChunk: Decodable {
+    let role: String?
+    let content: String?
+}
+
 enum OllamaError: Error, LocalizedError {
     case missingAPIKey
     case invalidResponse
@@ -194,5 +204,73 @@ final class OllamaClient {
         } catch {
             throw OllamaError.invalidResponse
         }
+    }
+    
+    func chatStream(
+        messages: [OllamaChatMessage],
+        reasoningLevel: String? = nil,
+        creativity: Double? = nil,
+        memorySize: Int? = nil,
+        onChunkReceived: @escaping (String) -> Void
+    ) async throws -> OllamaChatMessage {
+        guard let resolvedKey = apiKey, !resolvedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw OllamaError.missingAPIKey
+        }
+        
+        let url = URL(string: "/api/chat", relativeTo: baseURL)!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(resolvedKey)", forHTTPHeaderField: "Authorization")
+        
+        var options: [String: Any] = [
+            "num_predict": 1024
+        ]
+        if let creativity = creativity {
+            options["temperature"] = creativity
+        }
+        if let memorySize = memorySize {
+            options["num_ctx"] = memorySize
+        }
+        
+        var body: [String: Any] = [
+            "model": modelName,
+            "messages": messages.map { ["role": $0.role, "content": $0.content] },
+            "stream": true,
+            "options": options
+        ]
+        
+        if let reasoningLevel = reasoningLevel, reasoningLevel.lowercased() != "off" {
+            body["thinking"] = reasoningLevel.lowercased()
+        }
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            if httpResponse.statusCode == 401 {
+                throw OllamaError.apiError("Unauthorized: The API Key is incorrect or inactive.")
+            } else if httpResponse.statusCode == 429 {
+                throw OllamaError.apiError("Usage Limit Exceeded: You have reached your weekly Ollama usage limit.")
+            } else if httpResponse.statusCode != 200 {
+                throw OllamaError.apiError("API Error: HTTP Status \(httpResponse.statusCode)")
+            }
+        }
+        
+        var fullContent = ""
+        
+        for try await line in bytes.lines {
+            guard let data = line.data(using: .utf8) else { continue }
+            
+            if let chunk = try? JSONDecoder().decode(OllamaChatStreamChunk.self, from: data) {
+                if let content = chunk.message?.content {
+                    fullContent += content
+                    onChunkReceived(content)
+                }
+            }
+        }
+        
+        return OllamaChatMessage(role: "assistant", content: fullContent)
     }
 }

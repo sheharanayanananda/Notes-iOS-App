@@ -49,18 +49,22 @@ struct ChatView: View {
                     ScrollView {
                         LazyVStack(spacing: 24) {
                             ForEach(messages) { message in
-                                ChatBubbleView(message: message)
-                            }
-                            
-                            if isGenerating {
-                                ChatLoadingBubbleView()
-                                    .id("loading")
+                                if message.role == "assistant" && message.content.isEmpty && isGenerating {
+                                    ChatLoadingBubbleView()
+                                        .id("loading")
+                                } else {
+                                    ChatBubbleView(message: message)
+                                }
                             }
                             
                             if let errorMessage = errorMessage {
                                 ChatErrorBubbleView(message: errorMessage)
                                     .id("error")
                             }
+                            
+                            Color.clear
+                                .frame(height: 1)
+                                .id("bottomSpacer")
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 20)
@@ -444,14 +448,8 @@ struct ChatView: View {
     }
     
     private func scrollToBottom(proxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.25)) {
-            if isGenerating {
-                proxy.scrollTo("loading", anchor: .bottom)
-            } else if errorMessage != nil {
-                proxy.scrollTo("error", anchor: .bottom)
-            } else if let last = messages.last {
-                proxy.scrollTo(last.id, anchor: .bottom)
-            }
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+            proxy.scrollTo("bottomSpacer", anchor: .bottom)
         }
     }
     
@@ -464,6 +462,10 @@ struct ChatView: View {
         
         let userMessage = OllamaChatMessage(role: "user", content: trimmed)
         messages.append(userMessage)
+        
+        // Append an empty assistant message as a placeholder for streaming
+        let assistantPlaceholder = OllamaChatMessage(role: "assistant", content: "")
+        messages.append(assistantPlaceholder)
         saveMessages(messages)
         
         let sendGenerator = UIImpactFeedbackGenerator(style: .light)
@@ -475,15 +477,28 @@ struct ChatView: View {
             do {
                 let client = OllamaClient(modelName: selectedModel.systemName)
                 
-                let responseMessage = try await client.chat(
-                    messages: messages,
+                let finalMessage = try await client.chatStream(
+                    messages: messages.dropLast(),
                     reasoningLevel: selectedModel.supportsThinking ? thinkingLevel : "off",
                     creativity: creativity,
                     memorySize: memorySize.rawValue
-                )
+                ) { chunk in
+                    Task { @MainActor in
+                        if let lastIndex = messages.indices.last {
+                            let currentContent = messages[lastIndex].content
+                            messages[lastIndex] = OllamaChatMessage(
+                                id: messages[lastIndex].id,
+                                role: "assistant",
+                                content: currentContent + chunk
+                            )
+                        }
+                    }
+                }
                 
                 await MainActor.run {
-                    messages.append(responseMessage)
+                    if let lastIndex = messages.indices.last {
+                        messages[lastIndex] = finalMessage
+                    }
                     saveMessages(messages)
                     isGenerating = false
                     
@@ -492,6 +507,9 @@ struct ChatView: View {
                 }
             } catch {
                 await MainActor.run {
+                    if messages.last?.role == "assistant" && messages.last?.content.isEmpty == true {
+                        messages.removeLast()
+                    }
                     errorMessage = error.localizedDescription
                     isGenerating = false
                     
@@ -588,9 +606,7 @@ struct ChatBubbleView: View {
         if message.role == "user" {
             HStack {
                 Spacer()
-                formattedText(message.content)
-                    .font(.system(size: 16))
-                    .foregroundColor(.primary)
+                MarkdownMessageView(content: message.content)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
@@ -599,21 +615,9 @@ struct ChatBubbleView: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
-            formattedText(message.content)
-                .font(.system(size: 16))
-                .foregroundColor(.primary)
+            MarkdownMessageView(content: message.content)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-    
-    @ViewBuilder
-    private func formattedText(_ content: String) -> some View {
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        if let attrStr = try? AttributedString(markdown: content, options: options) {
-            Text(attrStr)
-        } else {
-            Text(content)
         }
     }
 }
