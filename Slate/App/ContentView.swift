@@ -95,7 +95,8 @@ struct ContentView: View {
                     
                     Tab("Chat", systemImage: "apple.intelligence", value: .intelligence, role: .search) {
                         NavigationStack {
-                            ChatView()
+                            ChatView(activeTab: $activeTab)
+                                .toolbar(.hidden, for: .tabBar)
                         }
                     }
                 }
