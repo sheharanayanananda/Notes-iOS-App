@@ -132,9 +132,9 @@ struct SlateTabView: View {
                     Button("Scribe", systemImage: "waveform") {
                         onScribe()
                     }
-                    Button("Smart Lens", systemImage: "text.viewfinder") {
-                        onSmartLens()
-                    }
+//                    Button("Smart Lens", systemImage: "text.viewfinder") {
+//                        onSmartLens()
+//                    }
                 }
             }
             ToolbarItem(placement: .navigation) {

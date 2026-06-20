@@ -93,15 +93,11 @@ struct ContentView: View {
                         }
                     }
                     
-//                    Tab("Tools", systemImage: "sparkles", value: .intelligence) {
-//                        NavigationStack {
-//                            ToolsTabView(
-//                                editingNote: $editingNote,
-//                                activeTab: $activeTab,
-//                                onSmartLens: { showScanner = true }
-//                            )
-//                        }
-//                    }
+                    Tab("Chat", systemImage: "apple.intelligence", value: .intelligence, role: .search) {
+                        NavigationStack {
+                            ChatView()
+                        }
+                    }
                 }
                 .sheet(item: $quickTool) { tool in
                     ToolSheet(type: tool, editingNote: $editingNote, activeTab: $activeTab)
