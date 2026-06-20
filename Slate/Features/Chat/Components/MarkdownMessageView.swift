@@ -8,6 +8,14 @@ import WebKit
 
 // MARK: - Markdown Models
 
+enum TableColumnAlignment: String, CaseIterable, Identifiable, Codable {
+    case leading
+    case center
+    case trailing
+    
+    var id: String { self.rawValue }
+}
+
 enum MarkdownBlock: Identifiable, Equatable {
     var id: String {
         switch self {
@@ -16,7 +24,7 @@ enum MarkdownBlock: Identifiable, Equatable {
         case .blockquote(let text): return "bq-\(text.hashValue)"
         case .list(let items): return "list-\(items.map { $0.text }.joined().hashValue)"
         case .code(_, let code): return "code-\(code.hashValue)"
-        case .table(let headers, let rows): return "table-\((headers.joined() + rows.flatMap { $0 }.joined()).hashValue)"
+        case .table(let headers, _, let rows): return "table-\((headers.joined() + rows.flatMap { $0 }.joined()).hashValue)"
         case .thematicBreak: return "hr"
         case .latex(let isDisplay, let equation): return "latex-\(isDisplay)-\(equation.hashValue)"
         }
@@ -27,7 +35,7 @@ enum MarkdownBlock: Identifiable, Equatable {
     case blockquote(text: String)
     case list(items: [MarkdownListItem])
     case code(language: String?, code: String)
-    case table(headers: [String], rows: [[String]])
+    case table(headers: [String], alignments: [TableColumnAlignment], rows: [[String]])
     case thematicBreak
     case latex(isDisplay: Bool, equation: String)
 }
@@ -58,6 +66,7 @@ struct MarkdownParser {
         let lines = text.components(separatedBy: .newlines)
         
         var currentCodeBlock: (language: String?, lines: [String])? = nil
+        var currentLaTeXBlock: [String]? = nil
         var currentBlockquoteLines: [String] = []
         var currentListItems: [MarkdownListItem] = []
         var currentTableLines: [String] = []
@@ -138,6 +147,40 @@ struct MarkdownParser {
                 var newLines = codeBlock.lines
                 newLines.append(line)
                 currentCodeBlock = (language: codeBlock.language, lines: newLines)
+                i += 1
+                continue
+            }
+            
+            // 1.5. LaTeX Display Math Blocks (Multi-line)
+            if (trimmed.hasPrefix("$$") && !trimmed.hasSuffix("$$")) || (trimmed == "$$" && currentLaTeXBlock == nil) {
+                if let latexBlock = currentLaTeXBlock {
+                    let equation = latexBlock.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                    blocks.append(.latex(isDisplay: true, equation: equation))
+                    currentLaTeXBlock = nil
+                } else {
+                    flushAll()
+                    let equationContent = trimmed == "$$" ? "" : String(trimmed.dropFirst(2))
+                    currentLaTeXBlock = [equationContent]
+                }
+                i += 1
+                continue
+            } else if (trimmed.hasSuffix("$$") && !trimmed.hasPrefix("$$")) || (trimmed == "$$" && currentLaTeXBlock != nil) {
+                if var latexBlock = currentLaTeXBlock {
+                    if trimmed != "$$" {
+                        latexBlock.append(String(trimmed.dropLast(2)))
+                    }
+                    let equation = latexBlock.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                    blocks.append(.latex(isDisplay: true, equation: equation))
+                    currentLaTeXBlock = nil
+                }
+                i += 1
+                continue
+            }
+            
+            if let latexBlock = currentLaTeXBlock {
+                var newLines = latexBlock
+                newLines.append(line)
+                currentLaTeXBlock = newLines
                 i += 1
                 continue
             }
@@ -279,6 +322,31 @@ struct MarkdownParser {
         
         guard !cleanedHeaders.isEmpty else { return nil }
         
+        let separators = separatorLine.components(separatedBy: "|")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var cleanedSeparators = separators
+        if separatorLine.hasPrefix("|") && !cleanedSeparators.isEmpty {
+            cleanedSeparators.removeFirst()
+        }
+        if separatorLine.hasSuffix("|") && !cleanedSeparators.isEmpty {
+            cleanedSeparators.removeLast()
+        }
+        
+        var alignments: [TableColumnAlignment] = []
+        for sep in cleanedSeparators {
+            if sep.hasPrefix(":") && sep.hasSuffix(":") {
+                alignments.append(.center)
+            } else if sep.hasSuffix(":") {
+                alignments.append(.trailing)
+            } else {
+                alignments.append(.leading)
+            }
+        }
+        
+        while alignments.count < cleanedHeaders.count {
+            alignments.append(.leading)
+        }
+        
         var rows: [[String]] = []
         for j in 2..<lines.count {
             let rowLine = lines[j]
@@ -295,7 +363,7 @@ struct MarkdownParser {
             rows.append(cleanedCells)
         }
         
-        return .table(headers: cleanedHeaders, rows: rows)
+        return .table(headers: cleanedHeaders, alignments: alignments, rows: rows)
     }
 }
 
@@ -319,8 +387,8 @@ struct MarkdownMessageView: View {
                     ListBlockView(items: items)
                 case .code(let language, let code):
                     CodeBlockView(language: language, code: code)
-                case .table(let headers, let rows):
-                    TableBlockView(headers: headers, rows: rows)
+                case .table(let headers, let alignments, let rows):
+                    TableBlockView(headers: headers, alignments: alignments, rows: rows)
                 case .thematicBreak:
                     ThematicBreakView()
                 case .latex(let isDisplay, let equation):
@@ -427,9 +495,14 @@ struct ListBlockView: View {
                         }
                     }
                     
-                    FormattedText(item.text)
-                        .font(.system(size: 16))
-                        .foregroundColor(.primary)
+                    if item.text.trimmingCharacters(in: .whitespaces).hasPrefix(">") {
+                        let cleanText = item.text.trimmingCharacters(in: .whitespaces).dropFirst().trimmingCharacters(in: .whitespaces)
+                        BlockquoteBlockView(text: cleanText)
+                    } else {
+                        FormattedText(item.text)
+                            .font(.system(size: 16))
+                            .foregroundColor(.primary)
+                    }
                 }
             }
         }
@@ -481,12 +554,31 @@ struct CodeBlockView: View {
             .background(colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
             
             ScrollView(.horizontal, showsIndicators: true) {
-                Text(code)
-                    .font(.system(size: 14, design: .monospaced))
-                    .foregroundColor(.primary)
-                    .padding(12)
-                    .textSelection(.enabled)
+                if language?.lowercased() == "diff" {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(code.components(separatedBy: .newlines).enumerated()), id: \.offset) { _, line in
+                            let isDeletion = line.hasPrefix("-")
+                            let isAddition = line.hasPrefix("+")
+                            let textColor: Color = isDeletion ? .red : (isAddition ? .green : .primary)
+                            let bgColor: Color = isDeletion ? Color.red.opacity(0.12) : (isAddition ? Color.green.opacity(0.12) : .clear)
+                            Text(line)
+                                .font(.system(size: 14, design: .monospaced))
+                                .foregroundColor(textColor)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(bgColor)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                } else {
+                    Text(code)
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .padding(12)
+                }
             }
+            .textSelection(.enabled)
             .background(colorScheme == .dark ? Color(white: 0.08) : Color(white: 0.97))
         }
         .cornerRadius(8)
@@ -500,32 +592,35 @@ struct CodeBlockView: View {
 
 struct TableBlockView: View {
     let headers: [String]
+    let alignments: [TableColumnAlignment]
     let rows: [[String]]
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         if headers.count <= 3 {
             gridTable
+                .frame(maxWidth: .infinity)
         } else {
             ScrollView(.horizontal, showsIndicators: true) {
                 gridTable
                     .frame(minWidth: CGFloat(headers.count) * 110)
             }
+            .frame(maxWidth: .infinity)
         }
     }
     
     @ViewBuilder
     private var gridTable: some View {
-        Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+        Grid(alignment: .leading, horizontalSpacing: 0.5, verticalSpacing: 0.5) {
             // Header row
             GridRow {
                 ForEach(0..<headers.count, id: \.self) { index in
+                    let alignment = index < alignments.count ? alignments[index] : .leading
                     FormattedText(headers[index])
                         .font(.system(size: 14, weight: .bold))
                         .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.90))
-                        .border(Color.secondary.opacity(0.3), width: 0.5)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: swiftUIAlignment(alignment))
+                        .background(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.92))
                 }
             }
             
@@ -535,27 +630,36 @@ struct TableBlockView: View {
                 GridRow {
                     ForEach(0..<headers.count, id: \.self) { colIndex in
                         let text = colIndex < row.count ? row[colIndex] : ""
+                        let alignment = colIndex < alignments.count ? alignments[colIndex] : .leading
                         FormattedText(text)
                             .font(.system(size: 14))
                             .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: swiftUIAlignment(alignment))
                             .background(
                                 rowIndex % 2 == 0
                                 ? (colorScheme == .dark ? Color(white: 0.08) : Color.white)
                                 : (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.97))
                             )
-                            .border(Color.secondary.opacity(0.2), width: 0.5)
                     }
                 }
             }
         }
-        .cornerRadius(8)
+        .background(colorScheme == .dark ? Color(white: 0.25) : Color(white: 0.8))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                .stroke(colorScheme == .dark ? Color(white: 0.25) : Color(white: 0.8), lineWidth: 1)
         )
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
+    }
+    
+    private func swiftUIAlignment(_ alignment: TableColumnAlignment) -> Alignment {
+        switch alignment {
+        case .leading: return .topLeading
+        case .center: return .top
+        case .trailing: return .topTrailing
+        }
     }
 }
 
@@ -887,11 +991,41 @@ struct FormattedText: View {
     }
     
     private func parseInlineMarkdown(_ text: String) -> Text {
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        if let attrStr = try? AttributedString(markdown: text, options: options) {
+        var cleanText = text
+            .replacingOccurrences(of: "<br>", with: "\n")
+            .replacingOccurrences(of: "<br/>", with: "\n")
+            .replacingOccurrences(of: "<br />", with: "\n")
+            
+        if let regex = try? NSRegularExpression(pattern: "~~(.*?)~~", options: []) {
+            let range = NSRange(cleanText.startIndex..., in: cleanText)
+            cleanText = regex.stringByReplacingMatches(in: cleanText, options: [], range: range, withTemplate: "[$1](strikethrough://true)")
+        }
+        
+        var options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        options.allowsExtendedAttributes = true
+        
+        if var attrStr = try? AttributedString(markdown: cleanText, options: options) {
+            for run in attrStr.runs {
+                if let link = run.link, link.scheme == "strikethrough" {
+                    attrStr[run.range].link = nil
+                    attrStr[run.range].strikethroughStyle = .single
+                }
+                
+                if run.inlinePresentationIntent?.contains(.code) == true {
+                    attrStr[run.range].foregroundColor = .red
+                    attrStr[run.range].backgroundColor = Color.primary.opacity(0.08)
+                    let isBold = run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+                    let isItalic = run.inlinePresentationIntent?.contains(.emphasized) == true
+                    var font = Font.system(size: 14, weight: isBold ? .bold : .medium, design: .monospaced)
+                    if isItalic {
+                        font = font.italic()
+                    }
+                    attrStr[run.range].font = font
+                }
+            }
             return Text(attrStr)
         } else {
-            return Text(text)
+            return Text(cleanText)
         }
     }
 }

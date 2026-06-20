@@ -218,7 +218,7 @@ struct ChatView: View {
                 sendMessage()
             }) {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 16))
                     .foregroundColor(colorScheme == .dark ? .black : .white)
                     .frame(width: 36, height: 36)
                     .background(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)
@@ -233,7 +233,7 @@ struct ChatView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     Capsule()
-                        .stroke(colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.1), lineWidth: 1)
+                        .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.07), lineWidth: 1)
                 )
         )
         .scaleEffect(x: liquidScaleX, y: liquidScaleY)
@@ -536,10 +536,51 @@ struct ChatBubbleView: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
-            MarkdownMessageView(content: message.content)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 8) {
+                MarkdownMessageView(content: message.content)
+                    .textSelection(.enabled)
+                
+                if !message.content.isEmpty {
+                    HStack {
+                        CopyButton(text: message.content)
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+struct CopyButton: View {
+    let text: String
+    @State private var isCopied = false
+    
+    var body: some View {
+        Button(action: {
+            UIPasteboard.general.string = text
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                isCopied = true
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    isCopied = false
+                }
+            }
+        }) {
+            Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 15))
+                .foregroundColor(isCopied ? .green : .secondary)
+                .frame(width: 32, height: 32)
+                .background(Color.clear)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
