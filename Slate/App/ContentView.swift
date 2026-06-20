@@ -93,15 +93,15 @@ struct ContentView: View {
                         }
                     }
                     
-                    Tab("Tools", systemImage: "sparkles", value: .intelligence) {
-                        NavigationStack {
-                            ToolsTabView(
-                                editingNote: $editingNote,
-                                activeTab: $activeTab,
-                                onSmartLens: { showScanner = true }
-                            )
-                        }
-                    }
+//                    Tab("Tools", systemImage: "sparkles", value: .intelligence) {
+//                        NavigationStack {
+//                            ToolsTabView(
+//                                editingNote: $editingNote,
+//                                activeTab: $activeTab,
+//                                onSmartLens: { showScanner = true }
+//                            )
+//                        }
+//                    }
                 }
                 .sheet(item: $quickTool) { tool in
                     ToolSheet(type: tool, editingNote: $editingNote, activeTab: $activeTab)
