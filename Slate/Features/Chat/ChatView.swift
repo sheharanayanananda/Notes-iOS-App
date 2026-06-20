@@ -12,6 +12,8 @@ struct ChatView: View {
     @Binding var activeTab: ContentView.TabIdentifier
     
     @State private var chatText = ""
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
     
     var body: some View {
         VStack(spacing: 20) {
@@ -76,6 +78,9 @@ struct ChatView: View {
                             .stroke(colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.1), lineWidth: 1)
                     )
             )
+            .scaleEffect(x: liquidScaleX, y: liquidScaleY)
+            .offset(x: dragOffset.width * 0.22, y: dragOffset.height * 0.12)
+            .simultaneousGesture(dragGesture)
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
@@ -96,6 +101,46 @@ struct ChatView: View {
                 }
             }
         }
+    }
+    
+    private var liquidScaleX: CGFloat {
+        let stretch = abs(dragOffset.width) * 0.0012 - abs(dragOffset.height) * 0.0008
+        return min(max(1.0 + stretch, 0.82), 1.15)
+    }
+    
+    private var liquidScaleY: CGFloat {
+        let stretch = abs(dragOffset.height) * 0.0012 - abs(dragOffset.width) * 0.0008
+        return min(max(1.0 + stretch, 0.82), 1.15)
+    }
+    
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 3)
+            .onChanged { value in
+                if !isDragging {
+                    isDragging = true
+                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.impactOccurred()
+                }
+                
+                let oldWidth = dragOffset.width
+                let newWidth = value.translation.width
+                if Int(abs(newWidth) / 20) != Int(abs(oldWidth) / 20) {
+                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.impactOccurred(intensity: 0.5)
+                }
+                
+                dragOffset = value.translation
+            }
+            .onEnded { _ in
+                if isDragging {
+                    isDragging = false
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
+                        dragOffset = .zero
+                    }
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                }
+            }
     }
 }
 
