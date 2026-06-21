@@ -1,64 +1,77 @@
-# Slate
+# Slate V2: The Agentic Notes App
 
-Slate is a simple, smart note-taking app for iOS built with Swift and SwiftUI. It saves notes offline on your device, encrypts your keys, and lets you scan documents to create organized notes using AI.
+Slate V2 is the next-generation, commercial iteration of the Slate note-taking platform for iOS. Built with Swift and SwiftUI, V2 moves beyond static text editing to deliver a fully autonomous, context-aware AI agent ecosystem designed to manage, synthesize, and automate user's personal knowledge.
+
+The V2 codebase resides in this private repository (`sheharanayanananda/Slate-V2`), while the open-source V1 version remains publicly available on `main` at `sheharanayanananda/Slate`.
 
 ---
 
-## Features
+## The Agentic Vision
+At the core of Slate V2 is the transition from a passive note-taking tool to an active **AI Agent**. The application is structured around a centralized workspace where the agent understands context, integrates with external platforms, and executes background automations.
 
-### Rich Text Editor
-* **Writing Canvas**
-  Write and format notes easily. The editor supports bold, italic, underline, strikethrough, and paragraph spacing.
-* **Checklists**
-  Use standard markdown (`- [ ]` and `- [x]`) for lists. You can tap directly on the checkboxes inside the editor to check or uncheck items. The note saves automatically.
-* **Keyboard Toolbar**
-  A formatting bar sits above your keyboard so you can quickly style text, make lists, or indent items with one tap.
-* **Typing Safeguards**
-  Hidden safeguards keep the editor smooth, responsive, and stable while you write.
+### 1. The Chat Command Center (Agentic Hub)
+The chat interface is the primary control deck of Slate V2. Rather than just answering queries, the chat acts as th centeral hub where all agentic features sit. Through conversational prompts, the user can ask the agent to index knowledge, interact with connected services, query system status, and launch tasks.
 
-### AI Note Organizer
-* **Smart Organizer**
-  Tap the sparkles button in the toolbar. The AI cleans up messy notes, fixes spelling mistakes, and organizes your text into a clean outline.
-* **Skeleton Loading Screen**
-  Shows a loading screen while the AI structures your note in the background.
-* **Typewriter Effect**
-  Renders the AI's organized output line-by-line with soft haptic feedback.
+### 2. Cross-Platform Connectivity
+Slate V2 integrates directly with external platforms to expand the agent's context window:
+- **Gmail & Slack Integration**: The agent connects securely to your communication channels, pulling email threads, channel discussions, and context.
+- **Context Harvesting**: The agent reads and processes incoming platform messages, allowing you to ask questions like: *"Summarize the feedback on the proposal from the Slack thread this morning."*
 
-### Saving Notes Offline & Security
-* **Offline Saving**
-  Saves your notes directly on your device using SwiftData. Notes are automatically sorted by date (newest first).
-* **Secure API Keys**
-  Encrypts and stores your API keys safely on your device using Apple Keychain so they stay private.
+### 3. Autonomous Note Management
+The agent acts as an automated gardener for your knowledge base:
+- **Contextual Note Creation**: The agent can autonomously create, update, link, and organize notes based on conversations, instructions, or information retrieved from connected platforms.
+- **Semantic Organization**: It categorizes notes, detects duplicates, suggests tags, and creates outlines without manual input.
 
-### Sharing & Exporting
-* **Export Options**
-  Export your notes as Rich Text (RTF), A4 PDF files (using PDFKit), or plain text (.txt) files.
-* **Quick List Actions**
-  Swipe left on any note in the list to share or export it. Swipe right to delete.
+### 4. Background Action Execution
+V2 agents work even when the app is in the pocket:
+- **Asynchronous Processing**: Performs actions in the background, such as scanning newly received emails for action items, compiling daily summaries, and auditing note consistency.
+- **Proactive Reminders**: Drafts follow-ups or alerts based on note content and context analyzed from platform integrations.
 
-### Smart Lens (Camera Scan)
-* **Document Scan**
-  Scan paper documents, receipts, or whiteboards using your camera with VisionKit. The app crops and cleans up the image automatically.
-* **Text & Object Detection**
-  Recognizes text in the scan and identifies objects or scenes using Apple's Vision framework.
-* **AI Note Creator**
-  Uses the scanned text and image details to generate structured markdown notes. If the scan has no text, the AI describes the scene instead.
+---
 
-### Settings Panel
-* **Slide Transition**
-  Tap the gear button on the toolbar to slide the settings panel in from the left. Tap the back button to slide it away.
+## Key Core Features
 
-### Product Roadmap
-* **Scribe**
-  Speak to the app to dictate thoughts and let the AI structure your note (Coming Soon).
-* **Web Clipper**
-  Extract summaries and key points from webpage links (Coming Soon).
+### Multi-Model presets
+- **Preset Behaviors**: Switch system instructions, temperatures, and context sizes instantly:
+  - **Balanced Assistant**: Standard note-taking and reasoning.
+  - **Deep Reasoning**: Max context (32K) for analyzing complex Slack threads or multi-page documents.
+  - **Creative Drafts**: High creativity (16K context) for brain-storming.
+  - **Quick Fixes**: Snappy, low-overhead responses.
+- **Loading Wave Animation**: Cascading vertical wave bounce typing indicator.
+- **Sequential Fade-In**: Answers load paragraph-by-paragraph with a premium fade-in and slide-up transition, resembling the Gemini app.
 
-### Demo Mode
-* **Sample Notes**
-  Turn on Demo Mode in settings to load 5 pre-made notes that showcase lists, formats, and sharing.
-* **Simulated Tools**
-  Presents mockup cards in the Tools tab for upcoming features.
+### High-Fidelity Markdown & LaTeX Formatting
+- **Advanced Math Rendering**: Support for inline and block equations, integrations, matrices, and custom quantum/algebraic symbols (`\langle`, `\Psi`, etc.).
+- **Optimized Layout Rendering**:
+  - Thread-safe dictionary caching for structural blocks and compiled inline markdown text.
+  - Statically compiled regular expressions for linkification (emails, URLs) and strikethroughs, preventing main-thread scroll lag.
+  - Web view height and HTML caching to prevent redundant MathJax CDN re-loading, achieving a smooth 60 FPS scrolling experience.
+
+### Liquid Physics Interactions
+- **Liquid Glass Input Capsule**: A floating text-entry bar featuring dynamic horizontal/vertical stretching animations and spring physics on drag offsets.
+- **Full-Capsule Focus**: Tapping anywhere on the capsule body (excluding specific utility buttons) immediately focuses the text input field.
+
+### Smart Lens (Camera Scanning)
+- VisionKit document scanning with automatic perspective correction.
+- Scene descriptions generated by the agent if no text is found in the scan.
+
+---
+
+## Codebase Restructure
+
+Slate V2 uses a feature-modular architecture to cleanly isolate agent utilities and UI features:
+
+```text
+├── Core/
+│   ├── API/             # Ollama client, network handlers, and integration wrappers
+│   └── Models/          # SwiftData models, presets, and context types
+└── Features/
+    ├── Chat/            # AI Chat view, BlockRenderer, and sequential animators
+    ├── Create/          # Note editor, writing canvas, and keyboard tools
+    ├── Settings/        # Settings panel, model picker, and keychain storage
+    ├── Slate/           # Main tab coordinator and app shell
+    └── Tools/           # Workspace mockup cards for background integrations
+```
 
 ---
 
@@ -66,41 +79,30 @@ Slate is a simple, smart note-taking app for iOS built with Swift and SwiftUI. I
 
 - Xcode 15.0 or later
 - iOS 17.0 or later
-- Camera permissions enabled (for Smart Lens)
-- Internet connection (for AI features)
+- Camera permissions (for document scanning)
+- API Connection (for Ollama model APIs)
 
 ---
 
 ## Getting Started
 
-1. **Clone the Repository**:
+1. **Clone the Private Repository**:
    ```bash
-   git clone https://github.com/sheharanayanananda/Slate.git
-   cd Slate
+   git clone https://github.com/sheharanayanananda/Slate-V2.git
+   cd Slate-V2
    ```
 
 2. **Open the Project**:
-   Double-click `Slate.xcodeproj` to open it in Xcode.
+   Open `Slate.xcodeproj` in Xcode.
 
-3. **Set Up API Keys**:
-   The app connects to your selected AI model using the API key in settings. Enter your key securely in the app Settings screen.
+3. **Secure API Configuration**:
+   Input your selected model API key in the app Settings screen. Keys are encrypted and stored in the secure Apple Keychain.
 
 4. **Build and Run**:
-   - Choose a target device (like an iPhone or simulator).
-   - Press `⌘ + R` or click the Play button in Xcode to run.
-
----
-
-## Testing
-
-The project includes test targets to verify core functionality:
-- **SlateTests**: Tests text formatting and data saving.
-- **SlateUITests**: Tests note creation and screen flows.
-
-Run tests using `⌘ + U` in Xcode.
+   Press `⌘ + R` to build and run on your target iOS device or simulator.
 
 ---
 
 ## License
 
-This project is licensed under the Slate Proprietary Source-Available and Commercial Restriction License - see the [LICENSE](LICENSE) file for details.
+This project is proprietary and commercial. All rights reserved. Unauthorized copying, distribution, or commercial reuse of Slate V2, via any medium, is strictly prohibited. The code is private and confidential. Copyright © 2026 Thineth Shehara.
