@@ -24,6 +24,7 @@ struct ChatView: View {
     @State private var messages: [OllamaChatMessage] = []
     @State private var isGenerating = false
     @State private var errorMessage: String? = nil
+    @FocusState private var isInputFocused: Bool
     
     var body: some View {
         Group {
@@ -198,6 +199,7 @@ struct ChatView: View {
             TextField("Ask Slate", text: $chatText)
                 .font(.system(size: 16))
                 .textFieldStyle(.plain)
+                .focused($isInputFocused)
                 .disabled(isGenerating)
                 .onSubmit {
                     sendMessage()
@@ -235,21 +237,24 @@ struct ChatView: View {
                     Capsule()
                         .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.07), lineWidth: 1)
                 )
+                .onTapGesture {
+                    isInputFocused = true
+                }
         )
         .scaleEffect(x: liquidScaleX, y: liquidScaleY)
-        .offset(x: dragOffset.width * 0.22, y: dragOffset.height * 0.12)
+        .offset(x: dragOffset.width * 0.25, y: dragOffset.height * 0.25)
         .simultaneousGesture(dragGesture)
         .padding(.horizontal, 16)
     }
     
     private var liquidScaleX: CGFloat {
-        let stretch = abs(dragOffset.width) * 0.0012 - abs(dragOffset.height) * 0.0008
-        return min(max(1.0 + stretch, 0.82), 1.15)
+        let stretch = abs(dragOffset.width) * 0.0015 - abs(dragOffset.height) * 0.001
+        return min(max(1.0 + stretch, 0.8), 1.2)
     }
     
     private var liquidScaleY: CGFloat {
-        let stretch = abs(dragOffset.height) * 0.0012 - abs(dragOffset.width) * 0.0008
-        return min(max(1.0 + stretch, 0.82), 1.15)
+        let stretch = abs(dragOffset.height) * 0.0015 - abs(dragOffset.width) * 0.001
+        return min(max(1.0 + stretch, 0.8), 1.2)
     }
     
     private var dragGesture: some Gesture {
@@ -269,7 +274,7 @@ struct ChatView: View {
                 }
                 
                 let horizontalTranslation = value.translation.width
-                let verticalTranslation = value.translation.height * 0.15
+                let verticalTranslation = value.translation.height
                 dragOffset = CGSize(width: horizontalTranslation, height: verticalTranslation)
             }
             .onEnded { _ in

@@ -30,6 +30,13 @@ enum MarkdownBlock: Identifiable, Equatable {
         }
     }
     
+    var isBlockElement: Bool {
+        switch self {
+        case .paragraph: return false
+        default: return true
+        }
+    }
+    
     case paragraph(text: String)
     case header(level: Int, text: String)
     case blockquote(blocks: [MarkdownBlock])
@@ -270,6 +277,18 @@ struct MarkdownParser {
                     checkboxState: checkboxState,
                     text: itemText
                 ))
+                i += 1
+                continue
+            } else if !currentListItems.isEmpty && leadingSpaces.count >= 2 && !trimmed.isEmpty {
+                // Continuation line for the active list item (e.g. indented table or code block)
+                let lastIdx = currentListItems.count - 1
+                let continuationText = String(line.dropFirst(min(leadingSpaces.count, 4)))
+                currentListItems[lastIdx] = MarkdownListItem(
+                    level: currentListItems[lastIdx].level,
+                    type: currentListItems[lastIdx].type,
+                    checkboxState: currentListItems[lastIdx].checkboxState,
+                    text: currentListItems[lastIdx].text + "\n" + continuationText
+                )
                 i += 1
                 continue
             } else if !currentListItems.isEmpty {
@@ -519,10 +538,13 @@ struct ListBlockView: View {
                         }
                     }
                     
-                    if item.text.trimmingCharacters(in: .whitespaces).hasPrefix(">") {
-                        let cleanText = item.text.trimmingCharacters(in: .whitespaces).dropFirst().trimmingCharacters(in: .whitespaces)
-                        let nestedBlocks = MarkdownParser.parse(cleanText)
-                        BlockquoteBlockView(blocks: nestedBlocks)
+                    let nestedBlocks = MarkdownParser.parse(item.text)
+                    if nestedBlocks.count > 1 || nestedBlocks.first?.isBlockElement == true {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(nestedBlocks) { block in
+                                BlockRenderer(block: block)
+                            }
+                        }
                     } else {
                         FormattedText(item.text)
                             .font(.system(size: 16))
@@ -850,9 +872,14 @@ func tokenize(_ text: String) -> [InlineToken] {
     var currentText = ""
     let characters = Array(text)
     var i = 0
+    var insideCode = false
     
     while i < characters.count {
-        if i < characters.count - 1 && characters[i] == "$" && characters[i+1] == "$" {
+        if characters[i] == "`" {
+            insideCode.toggle()
+            currentText.append("`")
+            i += 1
+        } else if !insideCode && i < characters.count - 1 && characters[i] == "$" && characters[i+1] == "$" {
             if !currentText.isEmpty {
                 tokens.append(.text(currentText))
                 currentText = ""
@@ -876,7 +903,7 @@ func tokenize(_ text: String) -> [InlineToken] {
                 currentText.append("$$")
                 i += 2
             }
-        } else if characters[i] == "$" {
+        } else if !insideCode && characters[i] == "$" {
             if !currentText.isEmpty {
                 tokens.append(.text(currentText))
                 currentText = ""
@@ -934,7 +961,8 @@ func formatMathString(_ formula: String) -> String {
         "\\delta": "δ", "\\lambda": "λ", "\\mu": "μ", "\\sigma": "σ",
         "\\phi": "φ", "\\omega": "ω", "\\partial": "∂", "\\nabla": "∇",
         "\\sum": "∑", "\\prod": "∏", "\\int": "∫", "\\sqrt": "√",
-        "\\approx": "≈", "\\propto": "∝"
+        "\\approx": "≈", "\\propto": "∝", "\\langle": "⟨", "\\rangle": "⟩",
+        "\\hbar": "ħ", "\\implies": "⟹", "\\to": "→", "\\psi": "ψ", "\\Psi": "Ψ"
     ]
     
     for (key, val) in superscripts {
