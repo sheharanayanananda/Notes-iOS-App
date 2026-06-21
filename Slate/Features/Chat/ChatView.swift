@@ -13,8 +13,6 @@ struct ChatView: View {
     @Binding var activeTab: ContentView.TabIdentifier
     
     @State private var chatText = ""
-    @State private var dragOffset: CGSize = .zero
-    @State private var isDragging = false
     
     @State private var selectedModel: ModelMetadata = ModelMetadata.availableModels[0]
     @State private var thinkingLevel: String = "Off"
@@ -58,7 +56,13 @@ struct ChatView: View {
                     
                     VStack {
                         Spacer()
-                        inputCapsuleView
+                        ChatCapsule(
+                            text: $chatText,
+                            isGenerating: isGenerating,
+                            isTextFieldDisabled: isTextFieldDisabled,
+                            isInputFocused: $isInputFocused,
+                            onSend: sendMessage
+                        )
                             .padding(.bottom, 16)
                     }
                 }
@@ -74,7 +78,7 @@ struct ChatView: View {
                                             .transition(.opacity.animation(.easeOut(duration: 0.1)))
                                     } else {
                                         ChatBubbleView(message: message, isNew: message.id == newlyGeneratedMessageId) {
-                                            scrollToBottom(proxy: proxy)
+                                            self.scrollToBottom(proxy: proxy, delay: 0.0, animate: true)
                                         }
                                     }
                                 }
@@ -94,7 +98,13 @@ struct ChatView: View {
                     }
                     .defaultScrollAnchor(.bottom)
                     .safeAreaInset(edge: .bottom) {
-                        inputCapsuleView
+                        ChatCapsule(
+                            text: $chatText,
+                            isGenerating: isGenerating,
+                            isTextFieldDisabled: isTextFieldDisabled,
+                            isInputFocused: $isInputFocused,
+                            onSend: sendMessage
+                        )
                             .padding(.bottom, 16)
                     }
                     .onChange(of: messages) {
@@ -121,12 +131,7 @@ struct ChatView: View {
         }
         .ignoresSafeArea(.container, edges: .bottom)
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: scenePhase) { oldValue, newValue in
-            if newValue == .background || newValue == .inactive {
-                isDragging = false
-                dragOffset = .zero
-            }
-        }
+
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {
@@ -198,111 +203,7 @@ struct ChatView: View {
         }
     }
     
-    @ViewBuilder
-    private var inputCapsuleView: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-            }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 20))
-                    .foregroundColor(.primary)
-            }
-            
-            // Chat input textfield
-            TextField("Ask Slate", text: $chatText)
-                .font(.system(size: 16))
-                .textFieldStyle(.plain)
-                .focused($isInputFocused)
-                .disabled(isTextFieldDisabled)
-                .opacity(isGenerating ? 0.6 : 1.0)
-                .onSubmit {
-                    sendMessage()
-                }
-            
-            // Voice input microphone button
-            Button(action: {
-                // Microphone Action
-            }) {
-                Image(systemName: "mic")
-                    .font(.system(size: 20))
-                    .foregroundColor(.primary)
-            }
-            .disabled(isGenerating)
-            .opacity(isGenerating ? 0.5 : 1.0)
-            
-            // Send Button
-            Button(action: {
-                sendMessage()
-            }) {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 16))
-                    .foregroundColor(colorScheme == .dark ? .black : .white)
-                    .frame(width: 36, height: 36)
-                    .background(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)
-                    .clipShape(Circle())
-            }
-            .disabled(chatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
-        }
-        .padding()
-        .padding(.leading, 5)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule()
-                        .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.07), lineWidth: 1)
-                )
-                .onTapGesture {
-                    isInputFocused = true
-                }
-        )
-        .scaleEffect(x: liquidScaleX, y: liquidScaleY)
-        .offset(x: dragOffset.width * 0.25, y: dragOffset.height * 0.25)
-        .simultaneousGesture(dragGesture)
-        .padding(.horizontal, 16)
-    }
-    
-    private var liquidScaleX: CGFloat {
-        let stretch = abs(dragOffset.width) * 0.0015 - abs(dragOffset.height) * 0.001
-        return min(max(1.0 + stretch, 0.8), 1.2)
-    }
-    
-    private var liquidScaleY: CGFloat {
-        let stretch = abs(dragOffset.height) * 0.0015 - abs(dragOffset.width) * 0.001
-        return min(max(1.0 + stretch, 0.8), 1.2)
-    }
-    
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 15)
-            .onChanged { value in
-                if !isDragging {
-                    isDragging = true
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                }
-                
-                let oldWidth = dragOffset.width
-                let newWidth = value.translation.width
-                if Int(abs(newWidth) / 20) != Int(abs(oldWidth) / 20) {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred(intensity: 0.5)
-                }
-                
-                let horizontalTranslation = value.translation.width
-                let verticalTranslation = value.translation.height
-                dragOffset = CGSize(width: horizontalTranslation, height: verticalTranslation)
-            }
-            .onEnded { _ in
-                if isDragging {
-                    isDragging = false
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
-                        dragOffset = .zero
-                    }
-                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                    generator.impactOccurred()
-                }
-            }
-    }
+
     
     private func selectModel(_ model: ModelMetadata) {
         selectedModel = model
@@ -355,7 +256,6 @@ struct ChatView: View {
         }
     }
     
-    @MainActor
     private func scrollToBottom(proxy: ScrollViewProxy, delay: Double = 0.0, animate: Bool = true) {
         scrollTask?.cancel()
         scrollTask = Task {
@@ -577,7 +477,7 @@ struct ChatBubbleView: View {
         if message.role == "user" {
             HStack {
                 Spacer()
-                MarkdownMessageView(content: message.content, isNew: false)
+                MessageView(content: message.content, isNew: false)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
@@ -587,7 +487,7 @@ struct ChatBubbleView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                MarkdownMessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed)
+                MessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed)
                     .textSelection(.enabled)
                 
                 if !message.content.isEmpty {
