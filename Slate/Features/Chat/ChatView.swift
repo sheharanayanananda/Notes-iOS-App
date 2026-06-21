@@ -26,6 +26,7 @@ struct ChatView: View {
     @State private var newlyGeneratedMessageId: String? = nil
     @State private var isTextFieldDisabled = false
     @State private var scrollTask: Task<Void, Never>? = nil
+    @State private var hasAppeared = false
     
     var body: some View {
         Group {
@@ -108,7 +109,9 @@ struct ChatView: View {
                             .padding(.bottom, 16)
                     }
                     .onChange(of: messages) {
-                        scrollToBottom(proxy: proxy, delay: 0.08)
+                        if hasAppeared {
+                            scrollToBottom(proxy: proxy, delay: 0.08)
+                        }
                     }
                     .onChange(of: isGenerating) {
                         scrollToBottom(proxy: proxy, delay: 0.08)
@@ -145,12 +148,6 @@ struct ChatView: View {
             
             ToolbarItem(placement: .principal) {
                 Menu {
-                    Picker("Model", selection: $selectedModel) {
-                        ForEach(ModelMetadata.availableModels) { model in
-                            Text(model.id).tag(model)
-                        }
-                    }
-                    
                     Picker("Presets", selection: $activePreset) {
                         ForEach(ChatPreset.allCases) { preset in
                             Text(preset.title).tag(preset)
@@ -158,7 +155,7 @@ struct ChatView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text("\(selectedModel.id) • \(activePreset.shortName)")
+                        Text("Slate AI • \(activePreset.shortName)")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(.primary)
                         
@@ -190,6 +187,9 @@ struct ChatView: View {
         .onAppear {
             messages = loadMessages()
             applyPreset(activePreset)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                hasAppeared = true
+            }
         }
         .onChange(of: selectedModel) {
             let generator = UIImpactFeedbackGenerator(style: .medium)
@@ -310,8 +310,12 @@ struct ChatView: View {
             do {
                 let client = OllamaClient(modelName: selectedModel.systemName)
                 
+                var messagesToSend = Array(messages.dropLast())
+                let systemMsg = OllamaChatMessage(role: "system", content: activePreset.systemPrompt)
+                messagesToSend.insert(systemMsg, at: 0)
+                
                 let finalMessage = try await client.chat(
-                    messages: messages.dropLast(),
+                    messages: messagesToSend,
                     reasoningLevel: selectedModel.supportsThinking ? thinkingLevel : "off",
                     creativity: creativity,
                     memorySize: memorySize.rawValue
@@ -363,108 +367,7 @@ struct ChatView: View {
     }
 }
 
-struct ModelMetadata: Identifiable, Hashable {
-    let id: String
-    let systemName: String
-    let description: String
-    
-    let supportsThinking: Bool
-    let maxMemorySize: MemoryLimit
-    let defaultCreativity: Double
-}
 
-enum MemoryLimit: Int, Comparable, CaseIterable, Identifiable {
-    case short = 4096      // 4K
-    case standard = 8192   // 8K
-    case detailed = 16384  // 16K
-    case maximum = 32768   // 32K
-    
-    var id: Int { self.rawValue }
-    
-    var displayName: String {
-        switch self {
-        case .short: return "Short (4K)"
-        case .standard: return "Standard (8K)"
-        case .detailed: return "Detailed (16K)"
-        case .maximum: return "Maximum (32K)"
-        }
-    }
-    
-    var subLabel: String {
-        switch self {
-        case .short: return "For quick, simple chats"
-        case .standard: return "Good for most tasks"
-        case .detailed: return "Better for referencing multiple notes"
-        case .maximum: return "Remembers extremely long chats"
-        }
-    }
-    
-    static func < (lhs: MemoryLimit, rhs: MemoryLimit) -> Bool {
-        lhs.rawValue < rhs.rawValue
-    }
-}
-
-extension ModelMetadata {
-    static let availableModels: [ModelMetadata] = [
-        ModelMetadata(id: "Gemma 4", systemName: "gemma4:31b", description: "Best for complex note organization, writing code, and automated connections to other apps.", supportsThinking: true, maxMemorySize: .maximum, defaultCreativity: 0.2)
-    ]
-}
-
-enum ChatPreset: String, CaseIterable, Identifiable {
-    case balanced = "Balanced Assistant"
-    case deepReasoning = "Deep Reasoning"
-    case creativeDrafts = "Creative Drafts"
-    case quickCorrections = "Quick Corrections"
-    
-    var id: String { self.rawValue }
-    
-    var title: String { self.rawValue }
-    
-    var shortName: String {
-        switch self {
-        case .balanced: return "Balanced"
-        case .deepReasoning: return "Deep Reasoning"
-        case .creativeDrafts: return "Creative"
-        case .quickCorrections: return "Quick Fixes"
-        }
-    }
-    
-    var subtitle: String {
-        switch self {
-        case .balanced: return "Balanced creativity, standard 8K memory"
-        case .deepReasoning: return "High reasoning depth, maximum 32K memory"
-        case .creativeDrafts: return "High creativity, detailed 16K memory"
-        case .quickCorrections: return "Low creativity, fast 4K memory"
-        }
-    }
-    
-    var creativity: Double {
-        switch self {
-        case .balanced: return 0.3
-        case .deepReasoning: return 0.2
-        case .creativeDrafts: return 0.8
-        case .quickCorrections: return 0.1
-        }
-    }
-    
-    var memorySize: MemoryLimit {
-        switch self {
-        case .balanced: return .standard
-        case .deepReasoning: return .maximum
-        case .creativeDrafts: return .detailed
-        case .quickCorrections: return .short
-        }
-    }
-    
-    var thinkingLevel: String {
-        switch self {
-        case .balanced: return "Off"
-        case .deepReasoning: return "High"
-        case .creativeDrafts: return "Low"
-        case .quickCorrections: return "Off"
-        }
-    }
-}
 
 
 struct ChatBubbleView: View {

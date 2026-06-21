@@ -77,5 +77,32 @@ struct SlateTests {
             #expect(serialized == testCase, "Failed for case: '\(testCase)' (got '\(serialized)')")
         }
     }
+
+    @Test func testMarkdownHeaders() throws {
+        let text = "# Header 1\n## Header 2\n### Header 3\n#NotHeader"
+        let blocks = MarkdownParser.parse(text)
+        
+        #expect(blocks.count == 4)
+        
+        if case .header(let level, let content) = blocks[0] {
+            #expect(level == 1)
+            #expect(content == "Header 1")
+        } else {
+            #expect(Bool(false), "Expected Header 1 block")
+        }
+        
+        if case .header(let level, let content) = blocks[1] {
+            #expect(level == 2)
+            #expect(content == "Header 2")
+        } else {
+            #expect(Bool(false), "Expected Header 2 block")
+        }
+        
+        if case .paragraph(let content) = blocks[3] {
+            #expect(content == "#NotHeader")
+        } else {
+            #expect(Bool(false), "Expected paragraph for #NotHeader")
+        }
+    }
 }
 

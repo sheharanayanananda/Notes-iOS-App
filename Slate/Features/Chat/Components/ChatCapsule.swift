@@ -36,6 +36,7 @@ struct ChatCapsule: View {
                 .focused(isInputFocused)
                 .disabled(isTextFieldDisabled)
                 .opacity(isGenerating ? 0.6 : 1.0)
+                .animation(.easeInOut(duration: 0.3), value: isGenerating)
                 .onSubmit {
                     onSend()
                 }
@@ -50,6 +51,7 @@ struct ChatCapsule: View {
             }
             .disabled(isGenerating)
             .opacity(isGenerating ? 0.5 : 1.0)
+            .animation(.easeInOut(duration: 0.3), value: isGenerating)
             
             // Send Button
             Button(action: {
@@ -63,6 +65,7 @@ struct ChatCapsule: View {
                     .clipShape(Circle())
             }
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
+            .animation(.easeInOut(duration: 0.3), value: isGenerating)
         }
         .padding()
         .padding(.leading, 5)

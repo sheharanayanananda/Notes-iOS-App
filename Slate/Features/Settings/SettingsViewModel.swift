@@ -49,10 +49,8 @@ enum KeyValidationStatus: Equatable {
 @Observable
 final class SettingsViewModel {
     var apiKey: String = ""
-    var selectedModel: String = "gemma4:31b"
     var validationStatus: KeyValidationStatus = .empty
-    var models: [String] = []
-    var isLoadingModels: Bool = false
+
     
     private var savedApiKey: String = ""
     private var validationTask: Task<Void, Never>?
@@ -62,14 +60,7 @@ final class SettingsViewModel {
     }
     
     func loadSettings() {
-        selectedModel = UserDefaults.standard.string(forKey: "ollama_model_name") ?? "gemma4:31b"
-        
-        // Instant load of models from local cache to prevent empty picker rendering lag
-        if let cached = UserDefaults.standard.stringArray(forKey: "ollama_available_models") {
-            models = cached
-        } else {
-            models = [selectedModel]
-        }
+
         
         // Read key from Keychain asynchronously to avoid blocking UI during VM init
         Task(priority: .userInitiated) {
@@ -83,9 +74,7 @@ final class SettingsViewModel {
             }
         }
         
-        Task {
-            await fetchModels()
-        }
+
     }
     
     func handleApiKeyChange() {
@@ -123,19 +112,7 @@ final class SettingsViewModel {
         }
     }
     
-    func handleModelChange() {
-        let currentSavedModel = UserDefaults.standard.string(forKey: "ollama_model_name") ?? "gemma4:31b"
-        guard selectedModel != currentSavedModel else { return }
-        
-        UserDefaults.standard.set(selectedModel, forKey: "ollama_model_name")
-        
-        Task {
-            let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                await performValidation()
-            }
-        }
-    }
+
     
     func savePendingChanges() {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -148,10 +125,7 @@ final class SettingsViewModel {
             savedApiKey = apiKey
         }
         
-        let currentSavedModel = UserDefaults.standard.string(forKey: "ollama_model_name") ?? "gemma4:31b"
-        if selectedModel != currentSavedModel {
-            UserDefaults.standard.set(selectedModel, forKey: "ollama_model_name")
-        }
+
     }
     
     private func performValidation() async {
@@ -163,7 +137,7 @@ final class SettingsViewModel {
         
         validationStatus = .checking
         
-        let client = OllamaClient(modelName: selectedModel, apiKey: trimmed)
+        let client = OllamaClient(modelName: "gemma4:31b", apiKey: trimmed)
         do {
             _ = try await client.generate(prompt: "", system: "Validation Check", image: nil)
             validationStatus = .valid
@@ -178,41 +152,5 @@ final class SettingsViewModel {
         }
     }
     
-    private func fetchModels() async {
-        guard !isLoadingModels else { return }
-        isLoadingModels = true
-        defer { isLoadingModels = false }
-        
-        guard let url = URL(string: "https://ollama.com/api/tags") else { return }
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return
-            }
-            
-            struct TagModel: Decodable {
-                let name: String
-            }
-            struct TagsResponse: Decodable {
-                let models: [TagModel]
-            }
-            
-            let tagsRes = try JSONDecoder().decode(TagsResponse.self, from: data)
-            let fetchedNames = tagsRes.models.map { $0.name }
-            
-            var uniqueModels = [selectedModel]
-            for name in fetchedNames {
-                if !uniqueModels.contains(name) {
-                    uniqueModels.append(name)
-                }
-            }
-            
-            await MainActor.run {
-                self.models = uniqueModels
-                UserDefaults.standard.set(uniqueModels, forKey: "ollama_available_models")
-            }
-        } catch {
-            print("Failed to fetch models: \(error)")
-        }
-    }
+
 }

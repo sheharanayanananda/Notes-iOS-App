@@ -386,11 +386,11 @@ struct MarkdownParser {
                     else { break }
                 }
                 if level > 0 && level <= 6 {
-                    let contentStart = trimmed.index(trimmed.startIndex, offsetBy: level)
-                    let headerText = String(trimmed[contentStart...]).trimmingCharacters(in: .whitespaces)
-                    if headerText.first == " " || headerText.isEmpty {
+                    let suffix = trimmed.dropFirst(level)
+                    if suffix.hasPrefix(" ") || suffix.isEmpty {
                         flushAll()
-                        blocks.append(.header(level: level, text: headerText.trimmingCharacters(in: .whitespacesAndNewlines)))
+                        let headerText = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+                        blocks.append(.header(level: level, text: headerText))
                         i += 1
                         continue
                     }
@@ -826,13 +826,14 @@ struct FormattedText: View {
             
             // Auto-linkify emails
             if let emailRegex = RegexCache.emailRegex {
-                let matches = cleanText.matches(of: emailRegex)
+                let plainText = String(attrStr.characters)
+                let matches = plainText.matches(of: emailRegex)
                 for match in matches {
                     let range = match.range
                     if let startIdx = AttributedString.Index(range.lowerBound, within: attrStr),
                        let endIdx = AttributedString.Index(range.upperBound, within: attrStr) {
                         let attrRange = startIdx..<endIdx
-                        let email = String(cleanText[range])
+                        let email = String(plainText[range])
                         if let mailURL = URL(string: "mailto:\(email)") {
                             attrStr[attrRange].link = mailURL
                             // Clear code formatting so it displays as standard blue link
@@ -847,14 +848,15 @@ struct FormattedText: View {
             
             // Auto-linkify raw URLs (excluding ones already in links)
             if let urlRegex = RegexCache.urlRegex {
-                let matches = cleanText.matches(of: urlRegex)
+                let plainText = String(attrStr.characters)
+                let matches = plainText.matches(of: urlRegex)
                 for match in matches {
                     let range = match.range
                     if let startIdx = AttributedString.Index(range.lowerBound, within: attrStr),
                        let endIdx = AttributedString.Index(range.upperBound, within: attrStr) {
                         let attrRange = startIdx..<endIdx
                         if attrStr[attrRange].link == nil {
-                            let urlStr = String(cleanText[range])
+                            let urlStr = String(plainText[range])
                             if let url = URL(string: urlStr) {
                                 attrStr[attrRange].link = url
                                 attrStr[attrRange].foregroundColor = .blue

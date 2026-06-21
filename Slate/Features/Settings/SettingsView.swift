@@ -61,21 +61,7 @@ struct SettingsView: View {
                     }
                 }
                 
-                HStack {
-                    Picker("AI Model", selection: $viewModel.selectedModel) {
-                        ForEach(viewModel.models, id: \.self) { model in
-                            Text(model).tag(model)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(.secondary)
-                    
-                    if viewModel.isLoadingModels {
-                        Spacer()
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
+
             }
             
             Section(
@@ -101,9 +87,7 @@ struct SettingsView: View {
         .onChange(of: viewModel.apiKey) {
             viewModel.handleApiKeyChange()
         }
-        .onChange(of: viewModel.selectedModel) {
-            viewModel.handleModelChange()
-        }
+
     }
     //----------------- End of UI Code -----------------//
 
