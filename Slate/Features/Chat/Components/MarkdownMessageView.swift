@@ -5,6 +5,64 @@
 
 import SwiftUI
 import WebKit
+import Foundation
+
+// MARK: - Performance Cache & Regex Cache
+
+private final class MarkdownCache {
+    private static let lock = NSRecursiveLock()
+    private static var parseCache: [String: [MarkdownBlock]] = [:]
+    private static var inlineCache: [String: Text] = [:]
+    private static let maxParseCacheSize = 100
+    private static let maxInlineCacheSize = 400
+    
+    private static var parseKeys: [String] = []
+    private static var inlineKeys: [String] = []
+    
+    static func getBlocks(for text: String) -> [MarkdownBlock]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return parseCache[text]
+    }
+    
+    static func setBlocks(_ blocks: [MarkdownBlock], for text: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if parseCache[text] == nil {
+            parseKeys.append(text)
+            if parseKeys.count > maxParseCacheSize {
+                let oldestKey = parseKeys.removeFirst()
+                parseCache.removeValue(forKey: oldestKey)
+            }
+        }
+        parseCache[text] = blocks
+    }
+    
+    static func getInlineText(for text: String) -> Text? {
+        lock.lock()
+        defer { lock.unlock() }
+        return inlineCache[text]
+    }
+    
+    static func setInlineText(_ textObj: Text, for text: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if inlineCache[text] == nil {
+            inlineKeys.append(text)
+            if inlineKeys.count > maxInlineCacheSize {
+                let oldestKey = inlineKeys.removeFirst()
+                inlineCache.removeValue(forKey: oldestKey)
+            }
+        }
+        inlineCache[text] = textObj
+    }
+}
+
+private enum RegexCache {
+    static let strikethroughRegex = try? NSRegularExpression(pattern: "~~(.*?)~~", options: [])
+    static let emailRegex = try? Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}")
+    static let urlRegex = try? Regex("https?://[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}(/[A-Za-z0-9._%/=&?#~+-]*)*")
+}
 
 // MARK: - Markdown Models
 
@@ -69,6 +127,15 @@ struct MarkdownListItem: Identifiable, Equatable {
 
 struct MarkdownParser {
     static func parse(_ text: String) -> [MarkdownBlock] {
+        if let cached = MarkdownCache.getBlocks(for: text) {
+            return cached
+        }
+        let parsed = parseRaw(text)
+        MarkdownCache.setBlocks(parsed, for: text)
+        return parsed
+    }
+    
+    private static func parseRaw(_ text: String) -> [MarkdownBlock] {
         var blocks: [MarkdownBlock] = []
         let lines = text.components(separatedBy: .newlines)
         
@@ -823,7 +890,11 @@ struct LaTeXWebViewRepresentable: UIViewRepresentable {
         </body>
         </html>
         """
-        uiView.loadHTMLString(htmlString, baseURL: nil)
+        
+        if context.coordinator.lastLoadedHTML != htmlString {
+            context.coordinator.lastLoadedHTML = htmlString
+            uiView.loadHTMLString(htmlString, baseURL: nil)
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -832,6 +903,7 @@ struct LaTeXWebViewRepresentable: UIViewRepresentable {
     
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: LaTeXWebViewRepresentable
+        var lastLoadedHTML: String?
         
         init(_ parent: LaTeXWebViewRepresentable) {
             self.parent = parent
@@ -1054,12 +1126,21 @@ struct FormattedText: View {
     }
     
     private func parseInlineMarkdown(_ text: String) -> Text {
+        if let cached = MarkdownCache.getInlineText(for: text) {
+            return cached
+        }
+        let parsed = FormattedText.parseInlineMarkdownRaw(text)
+        MarkdownCache.setInlineText(parsed, for: text)
+        return parsed
+    }
+    
+    fileprivate static func parseInlineMarkdownRaw(_ text: String) -> Text {
         var cleanText = text
             .replacingOccurrences(of: "<br>", with: "\n")
             .replacingOccurrences(of: "<br/>", with: "\n")
             .replacingOccurrences(of: "<br />", with: "\n")
             
-        if let regex = try? NSRegularExpression(pattern: "~~(.*?)~~", options: []) {
+        if let regex = RegexCache.strikethroughRegex {
             let range = NSRange(cleanText.startIndex..., in: cleanText)
             cleanText = regex.stringByReplacingMatches(in: cleanText, options: [], range: range, withTemplate: "[$1](strikethrough://true)")
         }
@@ -1088,7 +1169,7 @@ struct FormattedText: View {
             }
             
             // Auto-linkify emails
-            if let emailRegex = try? Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}") {
+            if let emailRegex = RegexCache.emailRegex {
                 let matches = cleanText.matches(of: emailRegex)
                 for match in matches {
                     let range = match.range
@@ -1109,7 +1190,7 @@ struct FormattedText: View {
             }
             
             // Auto-linkify raw URLs (excluding ones already in links)
-            if let urlRegex = try? Regex("https?://[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}(/[A-Za-z0-9._%/=&?#~+-]*)*") {
+            if let urlRegex = RegexCache.urlRegex {
                 let matches = cleanText.matches(of: urlRegex)
                 for match in matches {
                     let range = match.range
