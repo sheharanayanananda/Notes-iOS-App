@@ -14,11 +14,15 @@ struct ChatView: View {
     
     @State private var chatText = ""
     
-    @State private var selectedModel: ModelMetadata = ModelMetadata.availableModels[0]
     @State private var thinkingLevel: String = "Off"
     @State private var creativity: Double = 0.3
     @State private var memorySize: MemoryLimit = .standard
-    @State private var activePreset: ChatPreset = .balanced
+    
+    // Persisted storage — only written to, never read for UI rendering
+    @AppStorage("active_chat_preset") private var storedPreset: ChatPreset = .slateFlash
+    // State-driven — drives the UI instantly without SwiftUI animation transactions
+    @State private var displayedPreset: ChatPreset = .slateFlash
+
     @State private var messages: [OllamaChatMessage] = []
     @State private var isGenerating = false
     @State private var errorMessage: String? = nil
@@ -27,6 +31,7 @@ struct ChatView: View {
     @State private var isTextFieldDisabled = false
     @State private var scrollTask: Task<Void, Never>? = nil
     @State private var hasAppeared = false
+
     
     var body: some View {
         Group {
@@ -136,36 +141,54 @@ struct ChatView: View {
         .navigationBarTitleDisplayMode(.inline)
 
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button(action: {
                     activeTab = .notes
                 }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                    }
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
                 }
             }
             
             ToolbarItem(placement: .principal) {
                 Menu {
-                    Picker("Presets", selection: $activePreset) {
+                    Picker("Preset", selection: $displayedPreset) {
                         ForEach(ChatPreset.allCases) { preset in
                             Text(preset.title).tag(preset)
                         }
                     }
                 } label: {
-                    HStack(spacing: 4) {
-                        Text("Slate AI • \(activePreset.shortName)")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.secondary)
+                    // ZStack with a hidden widest-possible label establishes a fixed frame.
+                    // The nav bar measures this once and never resizes, eliminating cropping.
+                    ZStack {
+                        // Hidden reference — widest tier name sets the permanent frame width
+                        HStack(spacing: 4) {
+                            Text("Slate Creative")
+                                .font(.system(size: 17, weight: .semibold))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .hidden()
+
+                        // Visible content — always centered inside the fixed frame
+                        HStack(spacing: 4) {
+                            Text("Slate \(displayedPreset.modelTierName)")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
                     }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
                     .contentShape(Rectangle())
+                }
+                .onChange(of: displayedPreset) {
+                    selectPreset(displayedPreset)
                 }
             }
             
@@ -178,7 +201,7 @@ struct ChatView: View {
                     errorMessage = nil
                     chatText = ""
                 }) {
-                    Image(systemName: "square.and.pencil")
+                    Image(systemName: "plus")
                         .font(.system(size: 18))
                         .foregroundColor(.primary)
                 }
@@ -186,47 +209,33 @@ struct ChatView: View {
         }
         .onAppear {
             messages = loadMessages()
-            applyPreset(activePreset)
+            // Load persisted preset into @State on first appear
+            displayedPreset = storedPreset
+            applyPreset(storedPreset)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 hasAppeared = true
             }
         }
-        .onChange(of: selectedModel) {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            selectModel(selectedModel)
-        }
-        .onChange(of: activePreset) {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            applyPreset(activePreset)
-        }
     }
     
-
-    
-    private func selectModel(_ model: ModelMetadata) {
-        selectedModel = model
-        applyPreset(activePreset)
+    /// Selects a preset instantly in UI state, persists without animation
+    private func selectPreset(_ preset: ChatPreset) {
+        // Update @State immediately — this is NOT wrapped in any animation transaction
+        displayedPreset = preset
+        applyPreset(preset)
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        // Write to @AppStorage on next runloop tick to avoid triggering
+        // SwiftUI's animated view-update pass during this layout cycle
+        DispatchQueue.main.async {
+            storedPreset = preset
+        }
     }
     
     private func applyPreset(_ preset: ChatPreset) {
-        activePreset = preset
         creativity = preset.creativity
-        
-        // Clamp memory size to model's max memory size
-        if preset.memorySize > selectedModel.maxMemorySize {
-            memorySize = selectedModel.maxMemorySize
-        } else {
-            memorySize = preset.memorySize
-        }
-        
-        // Check if model supports thinking
-        if selectedModel.supportsThinking {
-            thinkingLevel = preset.thinkingLevel
-        } else {
-            thinkingLevel = "Off"
-        }
+        memorySize = preset.memorySize
+        thinkingLevel = preset.thinkingLevel
     }
     
     private func getFileURL() -> URL? {
@@ -308,15 +317,15 @@ struct ChatView: View {
         
         Task {
             do {
-                let client = OllamaClient(modelName: selectedModel.systemName)
+                let client = OllamaClient(modelName: "gemma4:31b")
                 
                 var messagesToSend = Array(messages.dropLast())
-                let systemMsg = OllamaChatMessage(role: "system", content: activePreset.systemPrompt)
+                let systemMsg = OllamaChatMessage(role: "system", content: displayedPreset.systemPrompt)
                 messagesToSend.insert(systemMsg, at: 0)
                 
                 let finalMessage = try await client.chat(
                     messages: messagesToSend,
-                    reasoningLevel: selectedModel.supportsThinking ? thinkingLevel : "off",
+                    reasoningLevel: thinkingLevel,
                     creativity: creativity,
                     memorySize: memorySize.rawValue
                 )

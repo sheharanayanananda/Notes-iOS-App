@@ -1,15 +1,5 @@
 import Foundation
 
-struct ModelMetadata: Identifiable, Hashable {
-    let id: String
-    let systemName: String
-    let description: String
-    
-    let supportsThinking: Bool
-    let maxMemorySize: MemoryLimit
-    let defaultCreativity: Double
-}
-
 enum MemoryLimit: Int, Comparable, CaseIterable, Identifiable {
     case short = 4096      // 4K
     case standard = 8192   // 8K
@@ -41,87 +31,119 @@ enum MemoryLimit: Int, Comparable, CaseIterable, Identifiable {
     }
 }
 
-extension ModelMetadata {
-    static let availableModels: [ModelMetadata] = [
-        ModelMetadata(id: "Gemma 4", systemName: "gemma4:31b", description: "Best for complex note organization, writing code, and automated connections to other apps.", supportsThinking: true, maxMemorySize: .maximum, defaultCreativity: 0.2)
-    ]
-}
 
 enum ChatPreset: String, CaseIterable, Identifiable {
-    case balanced = "Balanced Assistant"
-    case deepReasoning = "Deep Reasoning"
-    case creativeDrafts = "Creative Drafts"
-    case quickCorrections = "Quick Corrections"
-    case codeArchitect = "Code Architect"
-    case academicResearcher = "Academic Researcher"
+    case slateLite = "Slate Lite"
+    case slateFlash = "Slate Flash"
+    case slateCreative = "Slate Creative"
+    case slateScholar = "Slate Scholar"
+    case slateCoder = "Slate Coder"
+    case slatePro = "Slate Pro"
     
     var id: String { self.rawValue }
     
     var title: String { self.rawValue }
     
+    var modelTierName: String {
+        switch self {
+        case .slateLite: return "Lite"
+        case .slateFlash: return "Flash"
+        case .slateCreative: return "Creative"
+        case .slateScholar: return "Scholar"
+        case .slateCoder: return "Coder"
+        case .slatePro: return "Pro"
+        }
+    }
+    
     var shortName: String {
         switch self {
-        case .balanced: return "Balanced"
-        case .deepReasoning: return "Deep Reasoning"
-        case .creativeDrafts: return "Creative"
-        case .quickCorrections: return "Quick Fixes"
-        case .codeArchitect: return "Coder"
-        case .academicResearcher: return "Academic"
+        case .slateLite: return "Slate Lite"
+        case .slateFlash: return "Slate Flash"
+        case .slateCreative: return "Slate Creative"
+        case .slateScholar: return "Slate Scholar"
+        case .slateCoder: return "Slate Coder"
+        case .slatePro: return "Slate Pro"
         }
     }
     
     var subtitle: String {
         switch self {
-        case .balanced: return "Balanced creativity, standard 8K memory"
-        case .deepReasoning: return "High reasoning depth, maximum 32K memory"
-        case .creativeDrafts: return "High creativity, detailed 16K memory"
-        case .quickCorrections: return "Low creativity, fast 4K memory"
-        case .codeArchitect: return "Code expert, high reasoning, 32K memory"
-        case .academicResearcher: return "Formal tone, deep analysis, 16K memory"
+        case .slateLite: return "Fast editing, short 4K memory"
+        case .slateFlash: return "Balanced general purpose, standard 8K memory"
+        case .slateCreative: return "Brainstorming and drafting, detailed 16K memory"
+        case .slateScholar: return "Academic research, detailed 16K memory"
+        case .slateCoder: return "Coding expert, high reasoning, 32K memory"
+        case .slatePro: return "Deep reasoning, maximum 32K memory"
         }
     }
     
     var systemPrompt: String {
+        let basePrompt = """
+        You are Slate AI, a privacy-focused, highly capable, and intelligent assistant integrated into the Slate app (a modern, elegant note-taking, productivity, and document management platform created by Thineth Shehara).
+        
+        CRITICAL FORMATTING INSTRUCTIONS:
+        - You must strictly use ONLY the following formatting features:
+          1. Headings (logical structure using #, ##, ###, up to ######).
+          2. Lists: bullet points, numbered lists, and interactive task checklists (- [ ] or - [x]).
+          3. Bold (`**text**`), Italic (`*text*`), Underline (`<u>text</u>`), and Strikethrough (`~~text~~`).
+          4. Inline Math (`$formula$`) and Display Math (`$$formula$$`) using standard TeX/MathJax notation.
+          5. Inline code using backticks and multi-line code blocks using ```language.
+          6. Code diffs using ```diff syntax with lines prefixed by + (additions) or - (deletions).
+          7. Tables with column dividers (e.g. | Column 1 | Column 2 |).
+          8. Blockquotes and GitHub-style alert callouts (e.g. `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`).
+          9. Images using markdown syntax (`![caption](url)`).
+        - DO NOT use any HTML elements, structures, widgets, or styles other than the ones listed above. Never output arbitrary raw HTML or scripts.
+        """
+        
+        let tierPrompt: String
         switch self {
-        case .balanced: return "You are a highly capable and helpful assistant. Provide clear, accurate, and structured responses. Use markdown formatting where appropriate to improve readability."
-        case .deepReasoning: return "You are an expert analyst and critical thinker. Break down complex problems step-by-step. Explore multiple angles, provide comprehensive explanations, and ensure your logical deductions are sound before arriving at a conclusion."
-        case .creativeDrafts: return "You are a creative writer and brainstormer. Prioritize novel ideas, engaging storytelling, and expressive language. Feel free to explore unconventional concepts and use an inspiring tone."
-        case .quickCorrections: return "You are an expert editor. Focus strictly on fixing grammar, syntax, spelling, and formatting. Be as brief as possible and provide only the corrected text unless an explanation is explicitly requested."
-        case .codeArchitect: return "You are a senior software engineer. Write clean, efficient, and well-documented code. Always explain your technical decisions and follow best practices for the language being used."
-        case .academicResearcher: return "You are a meticulous researcher. Maintain a formal, academic tone. Cite sources implicitly, be precise with terminology, and structure responses like a research paper."
+        case .slateLite:
+            tierPrompt = "You are in the Slate Lite tier. Act as a rapid editing assistant. Focus strictly on spelling, grammar, syntax, and formatting. Keep responses brief, clean, and directly corrected."
+        case .slateFlash:
+            tierPrompt = "You are in the Slate Flash tier. Act as a balanced, general-purpose assistant. Provide fast, structured, and helpful responses to any queries."
+        case .slateCreative:
+            tierPrompt = "You are in the Slate Creative tier. Act as a highly creative brainstorming and writing partner. Prioritize novel ideas, engaging copy, and expressive descriptions."
+        case .slateScholar:
+            tierPrompt = "You are in the Slate Scholar tier. Act as a formal academic researcher. Maintain a rigorous, analytical tone, structure details logically, and present content precisely."
+        case .slateCoder:
+            tierPrompt = "You are in the Slate Coder tier. Act as a senior software architect. Provide clean, well-commented code, explain design patterns, and output structured diffs when suggesting modifications."
+        case .slatePro:
+            tierPrompt = "You are in the Slate Pro tier. Act as an expert reasoning assistant. Use deep step-by-step analysis, logical verification, and detailed reasoning to solve complex problems."
         }
+        
+        return "\(basePrompt)\n\n\(tierPrompt)"
     }
     
     var creativity: Double {
         switch self {
-        case .balanced: return 0.3
-        case .deepReasoning: return 0.2
-        case .creativeDrafts: return 0.8
-        case .quickCorrections: return 0.1
-        case .codeArchitect: return 0.1
-        case .academicResearcher: return 0.2
+        case .slateLite: return 0.1
+        case .slateFlash: return 0.3
+        case .slateCreative: return 0.8
+        case .slateScholar: return 0.2
+        case .slateCoder: return 0.1
+        case .slatePro: return 0.2
         }
     }
     
     var memorySize: MemoryLimit {
         switch self {
-        case .balanced: return .standard
-        case .deepReasoning: return .maximum
-        case .creativeDrafts: return .detailed
-        case .quickCorrections: return .short
-        case .codeArchitect: return .maximum
-        case .academicResearcher: return .detailed
+        case .slateLite: return .short
+        case .slateFlash: return .standard
+        case .slateCreative: return .detailed
+        case .slateScholar: return .detailed
+        case .slateCoder: return .maximum
+        case .slatePro: return .maximum
         }
     }
     
     var thinkingLevel: String {
         switch self {
-        case .balanced: return "Off"
-        case .deepReasoning: return "High"
-        case .creativeDrafts: return "Low"
-        case .quickCorrections: return "Off"
-        case .codeArchitect: return "High"
-        case .academicResearcher: return "High"
+        case .slateLite: return "Off"
+        case .slateFlash: return "Off"
+        case .slateCreative: return "Low"
+        case .slateScholar: return "High"
+        case .slateCoder: return "High"
+        case .slatePro: return "High"
         }
     }
 }
