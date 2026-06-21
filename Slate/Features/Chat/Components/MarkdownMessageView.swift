@@ -74,6 +74,34 @@ enum TableColumnAlignment: String, CaseIterable, Identifiable, Codable {
     var id: String { self.rawValue }
 }
 
+enum AlertType: String, CaseIterable, Codable {
+    case note = "NOTE"
+    case tip = "TIP"
+    case important = "IMPORTANT"
+    case warning = "WARNING"
+    case caution = "CAUTION"
+    
+    var iconName: String {
+        switch self {
+        case .note: return "info.circle.fill"
+        case .tip: return "lightbulb.fill"
+        case .important: return "exclamationmark.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .caution: return "flame.fill"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .note: return .blue
+        case .tip: return .orange
+        case .important: return .purple
+        case .warning: return .yellow
+        case .caution: return .red
+        }
+    }
+}
+
 enum MarkdownBlock: Identifiable, Equatable {
     var id: String {
         switch self {
@@ -85,6 +113,8 @@ enum MarkdownBlock: Identifiable, Equatable {
         case .table(let headers, _, let rows): return "table-\((headers.joined() + rows.flatMap { $0 }.joined()).hashValue)"
         case .thematicBreak: return "hr"
         case .latex(let isDisplay, let equation): return "latex-\(isDisplay)-\(equation.hashValue)"
+        case .alert(let type, let blocks): return "alert-\(type.rawValue)-\(blocks.map { $0.id }.joined().hashValue)"
+        case .image(let caption, let url): return "img-\(caption.hashValue)-\(url.hashValue)"
         }
     }
     
@@ -103,6 +133,8 @@ enum MarkdownBlock: Identifiable, Equatable {
     case table(headers: [String], alignments: [TableColumnAlignment], rows: [[String]])
     case thematicBreak
     case latex(isDisplay: Bool, equation: String)
+    case alert(type: AlertType, blocks: [MarkdownBlock])
+    case image(caption: String, urlString: String)
 }
 
 struct MarkdownListItem: Identifiable, Equatable {
@@ -166,9 +198,27 @@ struct MarkdownParser {
         
         func flushBlockquote() {
             guard !currentBlockquoteLines.isEmpty else { return }
-            let text = currentBlockquoteLines.joined(separator: "\n")
-            let nestedBlocks = MarkdownParser.parse(text)
-            blocks.append(.blockquote(blocks: nestedBlocks))
+            
+            // Check for GitHub-style alert callout
+            let firstLine = currentBlockquoteLines[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            var alertType: AlertType? = nil
+            for type in AlertType.allCases {
+                if firstLine == "[!\(type.rawValue)]" {
+                    alertType = type
+                    break
+                }
+            }
+            
+            if let alertType = alertType {
+                let contentLines = Array(currentBlockquoteLines.dropFirst())
+                let text = contentLines.joined(separator: "\n")
+                let nestedBlocks = MarkdownParser.parse(text)
+                blocks.append(.alert(type: alertType, blocks: nestedBlocks))
+            } else {
+                let text = currentBlockquoteLines.joined(separator: "\n")
+                let nestedBlocks = MarkdownParser.parse(text)
+                blocks.append(.blockquote(blocks: nestedBlocks))
+            }
             currentBlockquoteLines.removeAll()
         }
         
@@ -202,6 +252,42 @@ struct MarkdownParser {
         while i < lines.count {
             let line = lines[i]
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Single-line LaTeX Display Math Block
+            if trimmed.hasPrefix("$$") && trimmed.hasSuffix("$$") && trimmed.count >= 4 {
+                flushAll()
+                let equation = String(trimmed.dropFirst(2).dropLast(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+                blocks.append(.latex(isDisplay: true, equation: equation))
+                i += 1
+                continue
+            }
+            
+            // Single-line LaTeX Inline Math Block
+            if trimmed.hasPrefix("$") && trimmed.hasSuffix("$") && !trimmed.hasPrefix("$$") && trimmed.count >= 2 {
+                flushAll()
+                let equation = String(trimmed.dropFirst(1).dropLast(1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                blocks.append(.latex(isDisplay: false, equation: equation))
+                i += 1
+                continue
+            }
+            
+            // Image Block Detection
+            if trimmed.hasPrefix("![") && trimmed.contains("](") && trimmed.hasSuffix(")") {
+                flushAll()
+                if let closeBracketIdx = trimmed.firstIndex(of: "]"),
+                   let openParenIdx = trimmed.firstIndex(of: "(") {
+                    let captionStart = trimmed.index(trimmed.startIndex, offsetBy: 2)
+                    let caption = String(trimmed[captionStart..<closeBracketIdx])
+                    
+                    let urlStart = trimmed.index(after: openParenIdx)
+                    let urlEnd = trimmed.index(before: trimmed.endIndex)
+                    let urlString = String(trimmed[urlStart..<urlEnd])
+                    
+                    blocks.append(.image(caption: caption, urlString: urlString))
+                    i += 1
+                    continue
+                }
+            }
             
             // 1. Code Blocks
             if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
@@ -538,7 +624,100 @@ struct BlockRenderer: View {
             ThematicBreakView()
         case .latex(let isDisplay, let equation):
             LaTeXMathView(equation: equation, isDisplay: isDisplay)
+        case .alert(let type, let blocks):
+            AlertBlockView(type: type, blocks: blocks)
+        case .image(let caption, let urlString):
+            ImageBlockView(caption: caption, urlString: urlString)
         }
+    }
+}
+
+struct AlertBlockView: View {
+    let type: AlertType
+    let blocks: [MarkdownBlock]
+    @Environment(\.colorScheme) private var colorScheme
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: type.iconName)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(type.color)
+                .padding(.top, 2)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text(type.rawValue)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(type.color)
+                
+                ForEach(blocks) { block in
+                    BlockRenderer(block: block)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(type.color.opacity(colorScheme == .dark ? 0.12 : 0.06))
+        )
+        .overlay(
+            HStack {
+                Rectangle()
+                    .fill(type.color)
+                    .frame(width: 4)
+                Spacer()
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.vertical, 4)
+    }
+}
+
+struct ImageBlockView: View {
+    let caption: String
+    let urlString: String
+    @Environment(\.colorScheme) private var colorScheme
+    
+    var body: some View {
+        VStack(alignment: .center, spacing: 6) {
+            if let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 120)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .cornerRadius(8)
+                    case .failure:
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.octagon.fill")
+                                .foregroundColor(.red)
+                            Text("Failed to load image")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(8)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+            
+            if !caption.isEmpty {
+                Text(caption)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.vertical, 6)
     }
 }
 
@@ -1063,6 +1242,12 @@ func tokenize(_ text: String) -> [InlineToken] {
 func formatMathString(_ formula: String) -> String {
     var result = formula
     
+    // Replace \text{some content} with "some content"
+    if let regex = try? NSRegularExpression(pattern: #"\\text\{([^}]+)\}"#, options: []) {
+        let range = NSRange(result.startIndex..., in: result)
+        result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "$1")
+    }
+    
     let superscripts = [
         "^0": "⁰", "^1": "¹", "^2": "²", "^3": "³", "^4": "⁴",
         "^5": "⁵", "^6": "⁶", "^7": "⁷", "^8": "⁸", "^9": "⁹",
@@ -1082,7 +1267,10 @@ func formatMathString(_ formula: String) -> String {
         "\\phi": "φ", "\\omega": "ω", "\\partial": "∂", "\\nabla": "∇",
         "\\sum": "∑", "\\prod": "∏", "\\int": "∫", "\\sqrt": "√",
         "\\approx": "≈", "\\propto": "∝", "\\langle": "⟨", "\\rangle": "⟩",
-        "\\hbar": "ħ", "\\implies": "⟹", "\\to": "→", "\\psi": "ψ", "\\Psi": "Ψ"
+        "\\hbar": "ħ", "\\implies": "⟹", "\\to": "→", "\\psi": "ψ", "\\Psi": "Ψ",
+        "\\rightarrow": "→", "\\leftarrow": "←", "\\leftrightarrow": "↔",
+        "\\uparrow": "↑", "\\downarrow": "↓", "\\cdot": "·", "\\bullet": "•",
+        "\\checkmark": "✓"
     ]
     
     for (key, val) in superscripts {

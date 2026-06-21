@@ -26,6 +26,8 @@ struct ChatView: View {
     @State private var errorMessage: String? = nil
     @FocusState private var isInputFocused: Bool
     @State private var newlyGeneratedMessageId: String? = nil
+    @State private var isTextFieldDisabled = false
+    @State private var scrollTask: Task<Void, Never>? = nil
     
     var body: some View {
         Group {
@@ -64,7 +66,7 @@ struct ChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
-                            LazyVStack(spacing: 24) {
+                            VStack(spacing: 24) {
                                 ForEach(messages) { message in
                                     if message.role == "assistant" && message.content.isEmpty && isGenerating {
                                         ChatLoadingBubbleView()
@@ -90,27 +92,25 @@ struct ChatView: View {
                                 .id("bottomSpacer")
                         }
                     }
+                    .defaultScrollAnchor(.bottom)
                     .safeAreaInset(edge: .bottom) {
                         inputCapsuleView
                             .padding(.bottom, 16)
                     }
-                    .onAppear {
-                        scrollToBottom(proxy: proxy, delay: 0.15)
-                    }
                     .onChange(of: messages) {
-                        scrollToBottom(proxy: proxy, delay: 0.1)
+                        scrollToBottom(proxy: proxy, delay: 0.08)
                     }
                     .onChange(of: isGenerating) {
-                        scrollToBottom(proxy: proxy, delay: 0.1)
+                        scrollToBottom(proxy: proxy, delay: 0.08)
                     }
                     .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-                        scrollToBottom(proxy: proxy, delay: 0.08)
+                        scrollToBottom(proxy: proxy, delay: 0.05)
                     }
                     .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
-                        scrollToBottom(proxy: proxy, delay: 0.08)
+                        scrollToBottom(proxy: proxy, delay: 0.05)
                     }
                     .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                        scrollToBottom(proxy: proxy, delay: 0.08)
+                        scrollToBottom(proxy: proxy, delay: 0.05)
                     }
                 }
             }
@@ -213,7 +213,8 @@ struct ChatView: View {
                 .font(.system(size: 16))
                 .textFieldStyle(.plain)
                 .focused($isInputFocused)
-                .disabled(isGenerating)
+                .disabled(isTextFieldDisabled)
+                .opacity(isGenerating ? 0.6 : 1.0)
                 .onSubmit {
                     sendMessage()
                 }
@@ -227,6 +228,7 @@ struct ChatView: View {
                     .foregroundColor(.primary)
             }
             .disabled(isGenerating)
+            .opacity(isGenerating ? 0.5 : 1.0)
             
             // Send Button
             Button(action: {
@@ -353,15 +355,19 @@ struct ChatView: View {
         }
     }
     
-    private func scrollToBottom(proxy: ScrollViewProxy, delay: Double = 0.0) {
-        if delay > 0 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+    @MainActor
+    private func scrollToBottom(proxy: ScrollViewProxy, delay: Double = 0.0, animate: Bool = true) {
+        scrollTask?.cancel()
+        scrollTask = Task {
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
+            if animate {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
                     proxy.scrollTo("bottomSpacer", anchor: .bottom)
                 }
-            }
-        } else {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+            } else {
                 proxy.scrollTo("bottomSpacer", anchor: .bottom)
             }
         }
@@ -371,9 +377,23 @@ struct ChatView: View {
         let trimmed = chatText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        chatText = ""
-        errorMessage = nil
-        newlyGeneratedMessageId = nil
+        // Resign focus first to trigger smooth keyboard dismissal transition
+        isInputFocused = false
+        
+        // Clear input and update states with animation
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            chatText = ""
+            errorMessage = nil
+            newlyGeneratedMessageId = nil
+            isGenerating = true
+        }
+        
+        // Delay disabling the text field to allow keyboard dismissal animation to run fully
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                isTextFieldDisabled = true
+            }
+        }
         
         let userMessage = OllamaChatMessage(role: "user", content: trimmed)
         messages.append(userMessage)
@@ -385,8 +405,6 @@ struct ChatView: View {
         
         let sendGenerator = UIImpactFeedbackGenerator(style: .light)
         sendGenerator.impactOccurred()
-        
-        isGenerating = true
         
         Task {
             do {
@@ -406,6 +424,7 @@ struct ChatView: View {
                             newlyGeneratedMessageId = finalMessage.id
                         }
                         isGenerating = false
+                        isTextFieldDisabled = false
                     }
                     saveMessages(messages)
                     
@@ -424,8 +443,11 @@ struct ChatView: View {
                     if messages.last?.role == "assistant" && messages.last?.content.isEmpty == true {
                         messages.removeLast()
                     }
-                    errorMessage = error.localizedDescription
-                    isGenerating = false
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                        errorMessage = error.localizedDescription
+                        isGenerating = false
+                        isTextFieldDisabled = false
+                    }
                     
                     let errorGenerator = UINotificationFeedbackGenerator()
                     errorGenerator.notificationOccurred(.error)
