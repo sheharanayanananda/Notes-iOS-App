@@ -25,6 +25,7 @@ struct ChatView: View {
     @State private var isGenerating = false
     @State private var errorMessage: String? = nil
     @FocusState private var isInputFocused: Bool
+    @State private var newlyGeneratedMessageId: String? = nil
     
     var body: some View {
         Group {
@@ -68,8 +69,9 @@ struct ChatView: View {
                                     if message.role == "assistant" && message.content.isEmpty && isGenerating {
                                         ChatLoadingBubbleView()
                                             .id("loading")
+                                            .transition(.opacity.animation(.easeOut(duration: 0.1)))
                                     } else {
-                                        ChatBubbleView(message: message)
+                                        ChatBubbleView(message: message, isNew: message.id == newlyGeneratedMessageId)
                                     }
                                 }
                                 
@@ -352,6 +354,7 @@ struct ChatView: View {
         
         chatText = ""
         errorMessage = nil
+        newlyGeneratedMessageId = nil
         
         let userMessage = OllamaChatMessage(role: "user", content: trimmed)
         messages.append(userMessage)
@@ -370,33 +373,32 @@ struct ChatView: View {
             do {
                 let client = OllamaClient(modelName: selectedModel.systemName)
                 
-                let finalMessage = try await client.chatStream(
+                let finalMessage = try await client.chat(
                     messages: messages.dropLast(),
                     reasoningLevel: selectedModel.supportsThinking ? thinkingLevel : "off",
                     creativity: creativity,
                     memorySize: memorySize.rawValue
-                ) { chunk in
-                    Task { @MainActor in
-                        if let lastIndex = messages.indices.last {
-                            let currentContent = messages[lastIndex].content
-                            messages[lastIndex] = OllamaChatMessage(
-                                id: messages[lastIndex].id,
-                                role: "assistant",
-                                content: currentContent + chunk
-                            )
-                        }
-                    }
-                }
+                )
                 
                 await MainActor.run {
-                    if let lastIndex = messages.indices.last {
-                        messages[lastIndex] = finalMessage
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                        if let lastIndex = messages.indices.last {
+                            messages[lastIndex] = finalMessage
+                            newlyGeneratedMessageId = finalMessage.id
+                        }
+                        isGenerating = false
                     }
                     saveMessages(messages)
-                    isGenerating = false
                     
                     let replyGenerator = UIImpactFeedbackGenerator(style: .medium)
                     replyGenerator.impactOccurred()
+                    
+                    // Clear the newlyGeneratedMessageId after 3 seconds to prevent re-animation on scroll
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        if newlyGeneratedMessageId == finalMessage.id {
+                            newlyGeneratedMessageId = nil
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -526,13 +528,14 @@ enum ChatPreset: String, CaseIterable, Identifiable {
 
 struct ChatBubbleView: View {
     let message: OllamaChatMessage
+    var isNew: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         if message.role == "user" {
             HStack {
                 Spacer()
-                MarkdownMessageView(content: message.content)
+                MarkdownMessageView(content: message.content, isNew: false)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
@@ -542,7 +545,7 @@ struct ChatBubbleView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                MarkdownMessageView(content: message.content)
+                MarkdownMessageView(content: message.content, isNew: isNew)
                     .textSelection(.enabled)
                 
                 if !message.content.isEmpty {
@@ -620,22 +623,21 @@ struct ChatLoadingIndicator: View {
     @State private var isAnimating = false
     
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             ForEach(0..<3) { index in
                 Circle()
                     .fill(Color.secondary.opacity(0.8))
                     .frame(width: 6, height: 6)
-                    .scaleEffect(isAnimating ? 1.0 : 0.5)
-                    .opacity(isAnimating ? 1.0 : 0.3)
+                    .offset(y: isAnimating ? -6 : 0)
                     .animation(
-                        .easeInOut(duration: 0.6)
-                        .repeatForever()
-                        .delay(Double(index) * 0.2),
+                        .easeInOut(duration: 0.45)
+                        .repeatForever(autoreverses: true)
+                        .delay(Double(index) * 0.15),
                         value: isAnimating
                     )
             }
         }
-        .padding(.top, 8)
+        .padding(.vertical, 8)
         .onAppear {
             isAnimating = true
         }

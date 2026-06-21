@@ -456,14 +456,60 @@ struct MarkdownParser {
 
 // MARK: - Views
 
+struct IdentifiableBlock: Identifiable {
+    let id: String
+    let block: MarkdownBlock
+}
+
 struct MarkdownMessageView: View {
     let content: String
+    var isNew: Bool = false
+    
+    @State private var visibleBlocksCount: Int = 0
+    @State private var hasAnimated: Bool = false
     
     var body: some View {
         let blocks = MarkdownParser.parse(content)
+        let wrappedBlocks = blocks.enumerated().map { index, block in
+            IdentifiableBlock(id: "\(index)-\(block.id)", block: block)
+        }
+        
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(blocks) { block in
-                BlockRenderer(block: block)
+            ForEach(wrappedBlocks.prefix(visibleBlocksCount)) { wrapped in
+                BlockRenderer(block: wrapped.block)
+                    .transition(.asymmetric(
+                        insertion: .opacity
+                            .combined(with: .move(edge: .bottom))
+                            .animation(.easeOut(duration: 0.35)),
+                        removal: .identity
+                    ))
+            }
+        }
+        .onAppear {
+            if isNew && !hasAnimated {
+                visibleBlocksCount = 0
+                animateBlocks(count: blocks.count)
+            } else {
+                visibleBlocksCount = blocks.count
+            }
+        }
+        .onChange(of: content) {
+            if !isNew {
+                visibleBlocksCount = blocks.count
+            }
+        }
+    }
+    
+    private func animateBlocks(count: Int) {
+        hasAnimated = true
+        Task {
+            for i in 1...count {
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                await MainActor.run {
+                    withAnimation {
+                        visibleBlocksCount = i
+                    }
+                }
             }
         }
     }
