@@ -21,7 +21,7 @@ enum MarkdownBlock: Identifiable, Equatable {
         switch self {
         case .paragraph(let text): return "p-\(text.hashValue)"
         case .header(let level, let text): return "h-\(level)-\(text.hashValue)"
-        case .blockquote(let text): return "bq-\(text.hashValue)"
+        case .blockquote(let nestedBlocks): return "bq-\(nestedBlocks.map { $0.id }.joined().hashValue)"
         case .list(let items): return "list-\(items.map { $0.text }.joined().hashValue)"
         case .code(_, let code): return "code-\(code.hashValue)"
         case .table(let headers, _, let rows): return "table-\((headers.joined() + rows.flatMap { $0 }.joined()).hashValue)"
@@ -32,7 +32,7 @@ enum MarkdownBlock: Identifiable, Equatable {
     
     case paragraph(text: String)
     case header(level: Int, text: String)
-    case blockquote(text: String)
+    case blockquote(blocks: [MarkdownBlock])
     case list(items: [MarkdownListItem])
     case code(language: String?, code: String)
     case table(headers: [String], alignments: [TableColumnAlignment], rows: [[String]])
@@ -93,7 +93,8 @@ struct MarkdownParser {
         func flushBlockquote() {
             guard !currentBlockquoteLines.isEmpty else { return }
             let text = currentBlockquoteLines.joined(separator: "\n")
-            blocks.append(.blockquote(text: text))
+            let nestedBlocks = MarkdownParser.parse(text)
+            blocks.append(.blockquote(blocks: nestedBlocks))
             currentBlockquoteLines.removeAll()
         }
         
@@ -376,25 +377,33 @@ struct MarkdownMessageView: View {
         let blocks = MarkdownParser.parse(content)
         VStack(alignment: .leading, spacing: 10) {
             ForEach(blocks) { block in
-                switch block {
-                case .paragraph(let text):
-                    ParagraphBlockView(text: text)
-                case .header(let level, let text):
-                    HeaderBlockView(level: level, text: text)
-                case .blockquote(let text):
-                    BlockquoteBlockView(text: text)
-                case .list(let items):
-                    ListBlockView(items: items)
-                case .code(let language, let code):
-                    CodeBlockView(language: language, code: code)
-                case .table(let headers, let alignments, let rows):
-                    TableBlockView(headers: headers, alignments: alignments, rows: rows)
-                case .thematicBreak:
-                    ThematicBreakView()
-                case .latex(let isDisplay, let equation):
-                    LaTeXMathView(equation: equation, isDisplay: isDisplay)
-                }
+                BlockRenderer(block: block)
             }
+        }
+    }
+}
+
+struct BlockRenderer: View {
+    let block: MarkdownBlock
+    
+    var body: some View {
+        switch block {
+        case .paragraph(let text):
+            ParagraphBlockView(text: text)
+        case .header(let level, let text):
+            HeaderBlockView(level: level, text: text)
+        case .blockquote(let blocks):
+            BlockquoteBlockView(blocks: blocks)
+        case .list(let items):
+            ListBlockView(items: items)
+        case .code(let language, let code):
+            CodeBlockView(language: language, code: code)
+        case .table(let headers, let alignments, let rows):
+            TableBlockView(headers: headers, alignments: alignments, rows: rows)
+        case .thematicBreak:
+            ThematicBreakView()
+        case .latex(let isDisplay, let equation):
+            LaTeXMathView(equation: equation, isDisplay: isDisplay)
         }
     }
 }
@@ -406,12 +415,25 @@ struct HeaderBlockView: View {
     let text: String
     
     var body: some View {
-        FormattedText(text)
-            .font(fontForLevel)
-            .fontWeight(.bold)
-            .foregroundColor(.primary)
-            .padding(.top, topPadding)
-            .padding(.bottom, 2)
+        let isRtl = isRTL(text)
+        if isRtl {
+            FormattedText(text)
+                .font(fontForLevel)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .padding(.top, topPadding)
+                .padding(.bottom, 2)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } else {
+            FormattedText(text)
+                .font(fontForLevel)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .padding(.top, topPadding)
+                .padding(.bottom, 2)
+                .multilineTextAlignment(.leading)
+        }
     }
     
     private var fontForLevel: Font {
@@ -443,7 +465,7 @@ struct ThematicBreakView: View {
 }
 
 struct BlockquoteBlockView: View {
-    let text: String
+    let blocks: [MarkdownBlock]
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
@@ -452,11 +474,13 @@ struct BlockquoteBlockView: View {
                 .fill(Color.secondary.opacity(0.5))
                 .frame(width: 3)
             
-            FormattedText(text)
-                .font(.system(size: 15))
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 2)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(blocks) { block in
+                    BlockRenderer(block: block)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
         }
         .background(colorScheme == .dark ? Color(white: 0.1) : Color(white: 0.96))
         .cornerRadius(4)
@@ -497,7 +521,8 @@ struct ListBlockView: View {
                     
                     if item.text.trimmingCharacters(in: .whitespaces).hasPrefix(">") {
                         let cleanText = item.text.trimmingCharacters(in: .whitespaces).dropFirst().trimmingCharacters(in: .whitespaces)
-                        BlockquoteBlockView(text: cleanText)
+                        let nestedBlocks = MarkdownParser.parse(cleanText)
+                        BlockquoteBlockView(blocks: nestedBlocks)
                     } else {
                         FormattedText(item.text)
                             .font(.system(size: 16))
@@ -667,9 +692,19 @@ struct ParagraphBlockView: View {
     let text: String
     
     var body: some View {
-        FormattedText(text)
-            .font(.system(size: 16))
-            .foregroundColor(.primary)
+        let isRtl = isRTL(text)
+        if isRtl {
+            FormattedText(text)
+                .font(.system(size: 16))
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } else {
+            FormattedText(text)
+                .font(.system(size: 16))
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.leading)
+        }
     }
 }
 
@@ -1012,7 +1047,7 @@ struct FormattedText: View {
                 }
                 
                 if run.inlinePresentationIntent?.contains(.code) == true {
-                    attrStr[run.range].foregroundColor = .red
+                    attrStr[run.range].foregroundColor = .primary
                     attrStr[run.range].backgroundColor = Color.primary.opacity(0.08)
                     let isBold = run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
                     let isItalic = run.inlinePresentationIntent?.contains(.emphasized) == true
@@ -1023,9 +1058,67 @@ struct FormattedText: View {
                     attrStr[run.range].font = font
                 }
             }
+            
+            // Auto-linkify emails
+            if let emailRegex = try? Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}") {
+                let matches = cleanText.matches(of: emailRegex)
+                for match in matches {
+                    let range = match.range
+                    if let startIdx = AttributedString.Index(range.lowerBound, within: attrStr),
+                       let endIdx = AttributedString.Index(range.upperBound, within: attrStr) {
+                        let attrRange = startIdx..<endIdx
+                        let email = String(cleanText[range])
+                        if let mailURL = URL(string: "mailto:\(email)") {
+                            attrStr[attrRange].link = mailURL
+                            // Clear code formatting so it displays as standard blue link
+                            attrStr[attrRange].foregroundColor = .blue
+                            attrStr[attrRange].backgroundColor = nil
+                            attrStr[attrRange].font = nil
+                            attrStr[attrRange].inlinePresentationIntent = nil
+                        }
+                    }
+                }
+            }
+            
+            // Auto-linkify raw URLs (excluding ones already in links)
+            if let urlRegex = try? Regex("https?://[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}(/[A-Za-z0-9._%/=&?#~+-]*)*") {
+                let matches = cleanText.matches(of: urlRegex)
+                for match in matches {
+                    let range = match.range
+                    if let startIdx = AttributedString.Index(range.lowerBound, within: attrStr),
+                       let endIdx = AttributedString.Index(range.upperBound, within: attrStr) {
+                        let attrRange = startIdx..<endIdx
+                        if attrStr[attrRange].link == nil {
+                            let urlStr = String(cleanText[range])
+                            if let url = URL(string: urlStr) {
+                                attrStr[attrRange].link = url
+                                attrStr[attrRange].foregroundColor = .blue
+                                attrStr[attrRange].backgroundColor = nil
+                                attrStr[attrRange].font = nil
+                                attrStr[attrRange].inlinePresentationIntent = nil
+                            }
+                        }
+                    }
+                }
+            }
+            
             return Text(attrStr)
         } else {
             return Text(cleanText)
         }
     }
+}
+
+func isRTL(_ text: String) -> Bool {
+    guard let firstLetter = text.first(where: { $0.isLetter }) else { return false }
+    for scalar in firstLetter.unicodeScalars {
+        let value = scalar.value
+        if (value >= 0x0590 && value <= 0x05FF) || // Hebrew
+           (value >= 0x0600 && value <= 0x06FF) || // Arabic
+           (value >= 0x0750 && value <= 0x077F) || // Arabic Supplement
+           (value >= 0x08A0 && value <= 0x08FF) {   // Arabic Extended-A
+            return true
+        }
+    }
+    return false
 }
