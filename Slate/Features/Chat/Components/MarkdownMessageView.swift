@@ -464,6 +464,7 @@ struct IdentifiableBlock: Identifiable {
 struct MarkdownMessageView: View {
     let content: String
     var isNew: Bool = false
+    var onBlockRevealed: (() -> Void)? = nil
     
     @State private var visibleBlocksCount: Int = 0
     @State private var hasAnimated: Bool = false
@@ -509,6 +510,7 @@ struct MarkdownMessageView: View {
                     withAnimation {
                         visibleBlocksCount = i
                     }
+                    onBlockRevealed?()
                 }
             }
         }

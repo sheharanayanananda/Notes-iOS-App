@@ -71,7 +71,9 @@ struct ChatView: View {
                                             .id("loading")
                                             .transition(.opacity.animation(.easeOut(duration: 0.1)))
                                     } else {
-                                        ChatBubbleView(message: message, isNew: message.id == newlyGeneratedMessageId)
+                                        ChatBubbleView(message: message, isNew: message.id == newlyGeneratedMessageId) {
+                                            scrollToBottom(proxy: proxy)
+                                        }
                                     }
                                 }
                                 
@@ -93,13 +95,22 @@ struct ChatView: View {
                             .padding(.bottom, 16)
                     }
                     .onAppear {
-                        scrollToBottom(proxy: proxy)
+                        scrollToBottom(proxy: proxy, delay: 0.15)
                     }
                     .onChange(of: messages) {
-                        scrollToBottom(proxy: proxy)
+                        scrollToBottom(proxy: proxy, delay: 0.1)
                     }
                     .onChange(of: isGenerating) {
-                        scrollToBottom(proxy: proxy)
+                        scrollToBottom(proxy: proxy, delay: 0.1)
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                        scrollToBottom(proxy: proxy, delay: 0.08)
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                        scrollToBottom(proxy: proxy, delay: 0.08)
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                        scrollToBottom(proxy: proxy, delay: 0.08)
                     }
                 }
             }
@@ -342,9 +353,17 @@ struct ChatView: View {
         }
     }
     
-    private func scrollToBottom(proxy: ScrollViewProxy) {
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
-            proxy.scrollTo("bottomSpacer", anchor: .bottom)
+    private func scrollToBottom(proxy: ScrollViewProxy, delay: Double = 0.0) {
+        if delay > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                    proxy.scrollTo("bottomSpacer", anchor: .bottom)
+                }
+            }
+        } else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                proxy.scrollTo("bottomSpacer", anchor: .bottom)
+            }
         }
     }
     
@@ -529,6 +548,7 @@ enum ChatPreset: String, CaseIterable, Identifiable {
 struct ChatBubbleView: View {
     let message: OllamaChatMessage
     var isNew: Bool = false
+    var onBlockRevealed: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
@@ -545,7 +565,7 @@ struct ChatBubbleView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                MarkdownMessageView(content: message.content, isNew: isNew)
+                MarkdownMessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed)
                     .textSelection(.enabled)
                 
                 if !message.content.isEmpty {
