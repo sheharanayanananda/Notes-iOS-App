@@ -18,19 +18,20 @@ struct ChatCapsule: View {
     // Internal liquid scale drag animation states
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
+    @State private var showAttachmentSheet = false
     
     private var isMultiline: Bool {
-        text.contains("\n") || text.count > 28
+        text.contains("\n") || text.count > 33
     }
     
     private var currentCornerRadius: CGFloat {
-        isMultiline ? 28 : 35
+        isMultiline ? 32 : 35
     }
     
     // Subviews to keep code clean and maintain exact same layout behaviors
     private var plusButton: some View {
         Button(action: {
-            // Add attachment action if needed
+            showAttachmentSheet = true
         }) {
             Image(systemName: "plus")
                 .font(.system(size: 20))
@@ -74,13 +75,14 @@ struct ChatCapsule: View {
             // Chat input textfield (Invariant hierarchy to preserve focus)
             TextField("Ask Slate", text: $text, axis: .vertical)
                 .font(.system(size: 16))
+                .lineSpacing(5)
                 .textFieldStyle(.plain)
                 .focused(isInputFocused)
                 .disabled(isTextFieldDisabled)
                 .opacity(isGenerating ? 0.6 : 1.0)
                 .lineLimit(1...6)
                 .frame(minHeight: 36)
-                .padding(.leading, isMultiline ? 0 : 32)
+                .padding(.leading, isMultiline ? 0 : 38)
                 .padding(.trailing, isMultiline ? 0 : 80)
                 .onSubmit {
                     onSend()
@@ -116,6 +118,11 @@ struct ChatCapsule: View {
         .simultaneousGesture(dragGesture)
         .padding(.horizontal, 21)
         .padding(.bottom, 4)
+        .sheet(isPresented: $showAttachmentSheet) {
+            AttachmentSheetView()
+                .presentationDetents([.height(180)])
+                .presentationDragIndicator(.visible)
+        }
     }
     
     private var liquidScaleX: CGFloat {
@@ -158,5 +165,50 @@ struct ChatCapsule: View {
                     generator.impactOccurred()
                 }
             }
+    }
+}
+
+struct AttachmentOption: Identifiable {
+    let id = UUID()
+    let title: String
+    let icon: String
+    let color: Color
+}
+
+struct AttachmentSheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    let options = [
+        AttachmentOption(title: "Photos", icon: "photo.on.rectangle", color: .blue),
+        AttachmentOption(title: "Camera", icon: "camera", color: .green),
+        AttachmentOption(title: "Documents", icon: "doc.text", color: .orange)
+    ]
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 40) {
+                ForEach(options) { option in
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        VStack(spacing: 12) {
+                            Image(systemName: option.icon)
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(option.color.gradient)
+                                .clipShape(Circle())
+                                .shadow(color: option.color.opacity(0.3), radius: 6, x: 0, y: 3)
+                            
+                            Text(option.title)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                }
+            }
+            .padding(.top, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
