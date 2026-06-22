@@ -13,6 +13,7 @@ struct ChatView: View {
     @Binding var activeTab: ContentView.TabIdentifier
     
     @State private var chatText = ""
+    @State private var selectedImages: [UIImage] = []
     
     @State private var thinkingLevel: String = "Off"
     @State private var creativity: Double = 0.3
@@ -64,6 +65,7 @@ struct ChatView: View {
                         Spacer()
                         ChatCapsule(
                             text: $chatText,
+                            selectedImages: $selectedImages,
                             isGenerating: isGenerating,
                             isTextFieldDisabled: isTextFieldDisabled,
                             isInputFocused: $isInputFocused,
@@ -106,6 +108,7 @@ struct ChatView: View {
                     .safeAreaInset(edge: .bottom) {
                         ChatCapsule(
                             text: $chatText,
+                            selectedImages: $selectedImages,
                             isGenerating: isGenerating,
                             isTextFieldDisabled: isTextFieldDisabled,
                             isInputFocused: $isInputFocused,
@@ -271,14 +274,23 @@ struct ChatView: View {
     
     private func sendMessage() {
         let trimmed = chatText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty || !selectedImages.isEmpty else { return }
         
         // Resign focus first to trigger smooth keyboard dismissal transition
         isInputFocused = false
         
+        // Process images before clearing state
+        var base64Images: [String]? = nil
+        if !selectedImages.isEmpty {
+            base64Images = selectedImages.compactMap { img in
+                img.jpegData(compressionQuality: 0.7)?.base64EncodedString()
+            }
+        }
+        
         // Clear input and update states with animation
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             chatText = ""
+            selectedImages = []
             errorMessage = nil
             newlyGeneratedMessageId = nil
             isGenerating = true
@@ -291,7 +303,7 @@ struct ChatView: View {
             }
         }
         
-        let userMessage = OllamaChatMessage(role: "user", content: trimmed)
+        let userMessage = OllamaChatMessage(role: "user", content: trimmed, images: base64Images)
         messages.append(userMessage)
         
         // Append an empty assistant message as a placeholder for streaming
@@ -374,14 +386,36 @@ struct ChatBubbleView: View {
     
     var body: some View {
         if message.role == "user" {
-            HStack {
-                Spacer()
-                MessageView(content: message.content, isNew: false)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .textSelection(.enabled)
+            VStack(alignment: .trailing, spacing: 8) {
+                if let images = message.images, !images.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(images, id: \.self) { base64Str in
+                                if let data = Data(base64Encoded: base64Str), let uiImage = UIImage(data: data) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 120, height: 120)
+                                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                        )
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: 260)
+                }
+                
+                if !message.content.isEmpty {
+                    MessageView(content: message.content, isNew: false)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .textSelection(.enabled)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         } else {

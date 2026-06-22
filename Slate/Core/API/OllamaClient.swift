@@ -16,21 +16,24 @@ struct OllamaChatMessage: Codable, Equatable, Identifiable {
     var id: String = UUID().uuidString
     let role: String      // "user", "assistant", "system"
     let content: String
+    var images: [String]? // Base64 encoded JPEG representations
     
     enum CodingKeys: String, CodingKey {
-        case role, content
+        case role, content, images
     }
     
-    init(id: String = UUID().uuidString, role: String, content: String) {
+    init(id: String = UUID().uuidString, role: String, content: String, images: [String]? = nil) {
         self.id = id
         self.role = role
         self.content = content
+        self.images = images
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.role = try container.decode(String.self, forKey: .role)
         self.content = try container.decode(String.self, forKey: .content)
+        self.images = try container.decodeIfPresent([String].self, forKey: .images)
         self.id = UUID().uuidString
     }
     
@@ -38,6 +41,7 @@ struct OllamaChatMessage: Codable, Equatable, Identifiable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(role, forKey: .role)
         try container.encode(content, forKey: .content)
+        try container.encodeIfPresent(images, forKey: .images)
     }
 }
 
@@ -171,7 +175,13 @@ final class OllamaClient {
         
         var body: [String: Any] = [
             "model": modelName,
-            "messages": messages.map { ["role": $0.role, "content": $0.content] },
+            "messages": messages.map { msg in
+                var dict: [String: Any] = ["role": msg.role, "content": msg.content]
+                if let images = msg.images {
+                    dict["images"] = images
+                }
+                return dict
+            },
             "stream": false,
             "options": options
         ]
@@ -235,7 +245,13 @@ final class OllamaClient {
         
         var body: [String: Any] = [
             "model": modelName,
-            "messages": messages.map { ["role": $0.role, "content": $0.content] },
+            "messages": messages.map { msg in
+                var dict: [String: Any] = ["role": msg.role, "content": msg.content]
+                if let images = msg.images {
+                    dict["images"] = images
+                }
+                return dict
+            },
             "stream": true,
             "options": options
         ]

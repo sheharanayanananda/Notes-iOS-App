@@ -6,10 +6,15 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct ChatCapsule: View {
+    @State private var selectedItems: [PhotosPickerItem] = []
+    @State private var showPhotoPicker = false
+    
     @Environment(\.colorScheme) private var colorScheme
     @Binding var text: String
+    @Binding var selectedImages: [UIImage]
     var isGenerating: Bool
     var isTextFieldDisabled: Bool
     var isInputFocused: FocusState<Bool>.Binding
@@ -19,7 +24,7 @@ struct ChatCapsule: View {
     @State private var isDragging = false
     
     private var isMultiline: Bool {
-        text.contains("\n") || text.count > 33
+        text.contains("\n") || text.count > 33 || !selectedImages.isEmpty
     }
     
     private var currentCornerRadius: CGFloat {
@@ -29,7 +34,7 @@ struct ChatCapsule: View {
     private var plusButton: some View {
         Menu {
             Button(action: {
-                // Photos Action
+                showPhotoPicker = true
             }) {
                 Label("Photos", systemImage: "photo.on.rectangle")
             }
@@ -86,6 +91,45 @@ struct ChatCapsule: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: isMultiline ? 12 : 0) {
+            if !selectedImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, uiImage in
+                            ZStack(alignment: .topTrailing) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 72, height: 72)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                    )
+                                
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        selectedImages.remove(at: index)
+                                        if selectedItems.indices.contains(index) {
+                                            selectedItems.remove(at: index)
+                                        }
+                                    }
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(Color.primary, Color(uiColor: .systemBackground))
+                                        .font(.system(size: 22))
+                                }
+                                .offset(x: 6, y: -6)
+                            }
+                            .padding(.top, 6)
+                            .padding(.trailing, 6)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                }
+                .padding(.bottom, 8)
+            }
+            
             // Chat input textfield (Invariant hierarchy to preserve focus)
             TextField("Ask Slate", text: $text, axis: .vertical)
                 .font(.system(size: 16))
@@ -132,6 +176,28 @@ struct ChatCapsule: View {
         .simultaneousGesture(dragGesture)
         .padding(.horizontal, 21)
         .padding(.bottom, 4)
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedItems,
+            maxSelectionCount: 10,
+            matching: .images
+        )
+        .onChange(of: selectedItems) { _, newItems in
+            Task {
+                var loadedImages: [UIImage] = []
+                for item in newItems {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let uiImage = UIImage(data: data) {
+                        loadedImages.append(uiImage)
+                    }
+                }
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        self.selectedImages = Array(loadedImages.prefix(10))
+                    }
+                }
+            }
+        }
     }
     
     private var liquidScaleX: CGFloat {
