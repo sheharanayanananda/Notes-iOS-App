@@ -24,7 +24,7 @@ struct ChatCapsule: View {
     }
     
     private var currentCornerRadius: CGFloat {
-        isMultiline ? 26 : 32
+        isMultiline ? 28 : 35
     }
     
     // Subviews to keep code clean and maintain exact same layout behaviors
@@ -37,6 +37,7 @@ struct ChatCapsule: View {
                 .foregroundColor(.primary)
                 .frame(width: 20, height: 20)
         }
+        .padding(.leading, 7)
     }
     
     private var micButton: some View {
@@ -79,6 +80,7 @@ struct ChatCapsule: View {
                 .opacity(isGenerating ? 0.6 : 1.0)
                 .lineLimit(1...6)
                 .frame(minHeight: 36)
+                .padding(.leading, isMultiline ? 0 : 32)
                 .padding(.trailing, isMultiline ? 0 : 80)
                 .onSubmit {
                     onSend()
@@ -112,7 +114,8 @@ struct ChatCapsule: View {
         .scaleEffect(x: liquidScaleX, y: liquidScaleY)
         .offset(x: dragOffset.width * 0.25, y: dragOffset.height * 0.25)
         .simultaneousGesture(dragGesture)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 21)
+        .padding(.bottom, 4)
     }
     
     private var liquidScaleX: CGFloat {
