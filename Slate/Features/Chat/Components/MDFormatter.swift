@@ -96,7 +96,7 @@ enum AlertType: String, CaseIterable, Codable {
         switch self {
         case .note: return .blue
         case .tip: return .orange
-        case .important: return .purple
+        case .important: return .teal
         case .warning: return .yellow
         case .caution: return .red
         }

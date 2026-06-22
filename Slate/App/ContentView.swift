@@ -16,11 +16,11 @@ struct ContentView: View {
         case notes, create, intelligence, settings
     }
 
-    @State private var activeTab: TabIdentifier = .notes
+    @State private var activeTab: TabIdentifier = .intelligence
     @State private var editingNote: SlateModel? = nil
     @State private var quickTool: ToolType? = nil
     @State private var showSettings = false
-    @State private var showChatView = false
+    @State private var showChatView = true
 
     @State private var isSettingsVisible = false
     @State private var isSettingsInteractable = false

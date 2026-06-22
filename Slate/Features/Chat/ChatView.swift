@@ -152,9 +152,7 @@ struct ChatView: View {
                 }
             }
             
-            ToolbarSpacer(placement: .cancellationAction)
-            
-            ToolbarItem(placement: .cancellationAction) {
+            ToolbarItem(placement: .principal) {
                 Menu {
                     Picker("Preset", selection: $displayedPreset) {
                         ForEach(ChatPreset.allCases) { preset in
@@ -162,19 +160,16 @@ struct ChatView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 8) {
-                        // Fixed-width text: single-pass layout, nav bar never resizes,
-                        // chevron always renders in the same frame as the text.
+                    HStack(spacing: 4) {
                         Text("\(Text("Slate ").font(.system(size: 17, weight: .semibold)))\(Text(displayedPreset.modelTierName).font(.system(size: 16, weight: .regular)))")
                             .foregroundColor(.primary)
-                            .frame(alignment: .center)
 
                         Image(systemName: "chevron.down")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal, 8)
                 }
+                .buttonStyle(.plain)
                 .onChange(of: displayedPreset) {
                     selectPreset(displayedPreset)
                 }

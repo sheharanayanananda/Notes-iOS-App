@@ -152,7 +152,7 @@ struct ChatCapsule: View {
                 
                 Spacer()
                 
-                micButton
+//                micButton
                 sendButton
             }
             .padding(.top, isMultiline ? 0 : -36)
