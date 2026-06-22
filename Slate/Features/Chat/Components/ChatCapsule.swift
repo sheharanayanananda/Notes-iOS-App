@@ -19,67 +19,109 @@ struct ChatCapsule: View {
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
     
+    private var isMultiline: Bool {
+        text.contains("\n") || text.count > 28
+    }
+    
+    // Subviews to keep code clean and maintain exact same layout behaviors
+    private var plusButton: some View {
+        Button(action: {
+            // Add attachment action if needed
+        }) {
+            Image(systemName: "plus")
+                .font(.system(size: 20))
+                .foregroundColor(.primary)
+                .frame(width: 20, height: 20)
+        }
+    }
+    
+    private var micButton: some View {
+        Button(action: {
+            // Microphone Action
+        }) {
+            Image(systemName: "mic")
+                .font(.system(size: 20))
+                .foregroundColor(.primary)
+                .frame(width: 20, height: 20)
+        }
+        .disabled(isGenerating)
+        .opacity(isGenerating ? 0.5 : 1.0)
+        .animation(.easeInOut(duration: 0.3), value: isGenerating)
+    }
+    
+    private var sendButton: some View {
+        Button(action: {
+            onSend()
+        }) {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 16))
+                .foregroundColor(colorScheme == .dark ? .black : .white)
+                .frame(width: 36, height: 36)
+                .background(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)
+                .clipShape(Circle())
+        }
+        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
+        .animation(.easeInOut(duration: 0.3), value: isGenerating)
+    }
+    
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-                // Add attachment action if needed
-            }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 20))
-                    .foregroundColor(.primary)
-            }
-            
-            // Chat input textfield
-            TextField("Ask Slate", text: $text)
+        VStack(alignment: .leading, spacing: isMultiline ? 12 : 0) {
+            // Chat input textfield (Invariant hierarchy to preserve focus)
+            TextField("Ask Slate", text: $text, axis: .vertical)
                 .font(.system(size: 16))
                 .textFieldStyle(.plain)
                 .focused(isInputFocused)
                 .disabled(isTextFieldDisabled)
                 .opacity(isGenerating ? 0.6 : 1.0)
-                .animation(.easeInOut(duration: 0.3), value: isGenerating)
+                .lineLimit(1...6)
+                .frame(minHeight: 36)
+                .padding(.leading, isMultiline ? 0 : 32)
+                .padding(.trailing, isMultiline ? 0 : 80)
+                .overlay(alignment: .leading) {
+                    if !isMultiline {
+                        plusButton
+                    }
+                }
+                .overlay(alignment: .trailing) {
+                    if !isMultiline {
+                        HStack(spacing: 12) {
+                            micButton
+                            sendButton
+                        }
+                    }
+                }
                 .onSubmit {
                     onSend()
                 }
             
-            // Voice input microphone button
-            Button(action: {
-                // Microphone Action
-            }) {
-                Image(systemName: "mic")
-                    .font(.system(size: 20))
-                    .foregroundColor(.primary)
+            // Bottom Controls Bar (Visible only when multi-line)
+            if isMultiline {
+                HStack(spacing: 12) {
+                    plusButton
+                    
+                    Spacer()
+                    
+                    micButton
+                    
+                    sendButton
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            .disabled(isGenerating)
-            .opacity(isGenerating ? 0.5 : 1.0)
-            .animation(.easeInOut(duration: 0.3), value: isGenerating)
-            
-            // Send Button
-            Button(action: {
-                onSend()
-            }) {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 16))
-                    .foregroundColor(colorScheme == .dark ? .black : .white)
-                    .frame(width: 36, height: 36)
-                    .background(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)
-                    .clipShape(Circle())
-            }
-            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
-            .animation(.easeInOut(duration: 0.3), value: isGenerating)
         }
-        .padding()
-        .padding(.leading, 5)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
         .background(
-            Capsule()
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    Capsule()
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.07), lineWidth: 1)
                 )
                 .onTapGesture {
                     isInputFocused.wrappedValue = true
                 }
         )
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isMultiline)
         .scaleEffect(x: liquidScaleX, y: liquidScaleY)
         .offset(x: dragOffset.width * 0.25, y: dragOffset.height * 0.25)
         .simultaneousGesture(dragGesture)
