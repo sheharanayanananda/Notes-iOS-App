@@ -151,7 +151,9 @@ struct ChatView: View {
                 }
             }
             
-            ToolbarItem(placement: .principal) {
+            ToolbarSpacer(placement: .cancellationAction)
+            
+            ToolbarItem(placement: .cancellationAction) {
                 Menu {
                     Picker("Preset", selection: $displayedPreset) {
                         ForEach(ChatPreset.allCases) { preset in
@@ -159,33 +161,18 @@ struct ChatView: View {
                         }
                     }
                 } label: {
-                    // ZStack with a hidden widest-possible label establishes a fixed frame.
-                    // The nav bar measures this once and never resizes, eliminating cropping.
-                    ZStack {
-                        // Hidden reference — widest tier name sets the permanent frame width
-                        HStack(spacing: 4) {
-                            Text("Slate Creative")
-                                .font(.system(size: 17, weight: .semibold))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                        .hidden()
+                    HStack(spacing: 8) {
+                        // Fixed-width text: single-pass layout, nav bar never resizes,
+                        // chevron always renders in the same frame as the text.
+                        Text("\(Text("Slate ").font(.system(size: 17, weight: .semibold)))\(Text(displayedPreset.modelTierName).font(.system(size: 16, weight: .regular)))")
+                            .foregroundColor(.primary)
+                            .frame(alignment: .center)
 
-                        // Visible content — always centered inside the fixed frame
-                        HStack(spacing: 4) {
-                            Text("Slate \(displayedPreset.modelTierName)")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(.primary)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
                     }
-                    .contentShape(Rectangle())
+                    .padding(.horizontal, 8)
                 }
                 .onChange(of: displayedPreset) {
                     selectPreset(displayedPreset)
