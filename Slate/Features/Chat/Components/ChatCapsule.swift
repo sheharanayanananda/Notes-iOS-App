@@ -121,7 +121,7 @@ struct ChatCapsule: View {
         .padding(.bottom, 4)
         .sheet(isPresented: $showAttachmentSheet) {
             AttachmentSheetView()
-                .presentationDetents([.height(180)])
+                .presentationDetents([.height(200)])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -187,27 +187,38 @@ struct AttachmentSheetView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 40) {
+            HStack(spacing: 16) {
                 ForEach(options) { option in
                     Button(action: {
                         dismiss()
                     }) {
                         VStack(spacing: 12) {
+                            Spacer()
+                            
                             Image(systemName: option.icon)
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 56, height: 56)
-                                .background(option.color.gradient)
-                                .clipShape(Circle())
-                                .shadow(color: option.color.opacity(0.3), radius: 6, x: 0, y: 3)
+                                .font(.system(size: 28, weight: .medium))
+                                .foregroundColor(option.color)
                             
                             Text(option.title)
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.primary)
+                            
+                            Spacer()
                         }
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(1.0, contentMode: .fit)
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
                     }
+                    .buttonStyle(ToolCardButtonStyle())
                 }
             }
+            .padding(.horizontal, 20)
             .padding(.top, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
