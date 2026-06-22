@@ -36,9 +36,9 @@ struct ChatCapsule: View {
             Image(systemName: "plus")
                 .font(.system(size: 20))
                 .foregroundColor(.primary)
-                .frame(width: 20, height: 20)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
         }
-        .padding(.leading, 7)
     }
     
     private var micButton: some View {
@@ -48,7 +48,8 @@ struct ChatCapsule: View {
             Image(systemName: "mic")
                 .font(.system(size: 20))
                 .foregroundColor(.primary)
-                .frame(width: 20, height: 20)
+                .frame(width: 36, height: 36)
+                .contentShape(Circle())
         }
         .disabled(isGenerating)
         .opacity(isGenerating ? 0.5 : 1.0)
@@ -82,8 +83,8 @@ struct ChatCapsule: View {
                 .opacity(isGenerating ? 0.6 : 1.0)
                 .lineLimit(1...6)
                 .frame(minHeight: 36)
-                .padding(.leading, isMultiline ? 0 : 38)
-                .padding(.trailing, isMultiline ? 0 : 80)
+                .padding(.leading, isMultiline ? 0 : 42)
+                .padding(.trailing, isMultiline ? 0 : 92)
                 .onSubmit {
                     onSend()
                 }
