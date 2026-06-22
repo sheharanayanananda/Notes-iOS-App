@@ -25,11 +25,11 @@ struct ChatCapsule: View {
     @State private var isDragging = false
     
     private var isMultiline: Bool {
-        text.contains("\n") || text.count > 33 || !selectedImages.isEmpty
+        text.contains("\n") || text.count > 38 || !selectedImages.isEmpty
     }
     
     private var currentCornerRadius: CGFloat {
-        isMultiline ? 32 : 35
+        isMultiline ? 33 : 35
     }
     
     private var plusButton: some View {
@@ -141,8 +141,8 @@ struct ChatCapsule: View {
                 .opacity(isGenerating ? 0.6 : 1.0)
                 .lineLimit(1...6)
                 .frame(minHeight: 36)
-                .padding(.leading, isMultiline ? 0 : 42)
-                .padding(.trailing, isMultiline ? 0 : 92)
+                .padding(.horizontal, isMultiline ? 0 : 42)
+//                .padding(.trailing, isMultiline ? 0 : 42)
                 .onSubmit {
                     onSend()
                 }
@@ -153,7 +153,6 @@ struct ChatCapsule: View {
                 
                 Spacer()
                 
-//                micButton
                 sendButton
             }
             .padding(.top, isMultiline ? 0 : -36)
@@ -162,11 +161,8 @@ struct ChatCapsule: View {
         .padding(.horizontal, 16)
         .background(
             RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
-                        .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.07), lineWidth: 1)
-                )
+                .fill(.clear)
+                .glassEffect(.regular.interactive(false), in: .rect(cornerRadius: currentCornerRadius))
                 .onTapGesture {
                     isInputFocused.wrappedValue = true
                 }
