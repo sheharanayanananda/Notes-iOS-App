@@ -23,6 +23,10 @@ struct ChatCapsule: View {
         text.contains("\n") || text.count > 28
     }
     
+    private var currentCornerRadius: CGFloat {
+        isMultiline ? 26 : 32
+    }
+    
     // Subviews to keep code clean and maintain exact same layout behaviors
     private var plusButton: some View {
         Button(action: {
@@ -75,46 +79,29 @@ struct ChatCapsule: View {
                 .opacity(isGenerating ? 0.6 : 1.0)
                 .lineLimit(1...6)
                 .frame(minHeight: 36)
-                .padding(.leading, isMultiline ? 0 : 32)
                 .padding(.trailing, isMultiline ? 0 : 80)
-                .overlay(alignment: .leading) {
-                    if !isMultiline {
-                        plusButton
-                    }
-                }
-                .overlay(alignment: .trailing) {
-                    if !isMultiline {
-                        HStack(spacing: 12) {
-                            micButton
-                            sendButton
-                        }
-                    }
-                }
                 .onSubmit {
                     onSend()
                 }
             
-            // Bottom Controls Bar (Visible only when multi-line)
-            if isMultiline {
-                HStack(spacing: 12) {
-                    plusButton
-                    
-                    Spacer()
-                    
-                    micButton
-                    
-                    sendButton
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            // Buttons Row (Invariant - exact same buttons slide down)
+            HStack(spacing: 12) {
+                plusButton
+                
+                Spacer()
+                
+                micButton
+                sendButton
             }
+            .padding(.top, isMultiline ? 0 : -36)
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 16)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
                         .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.07), lineWidth: 1)
                 )
                 .onTapGesture {
