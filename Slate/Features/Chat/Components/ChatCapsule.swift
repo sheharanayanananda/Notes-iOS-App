@@ -11,6 +11,7 @@ import PhotosUI
 struct ChatCapsule: View {
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var showPhotoPicker = false
+    @State private var showCamera = false
     
     @Environment(\.colorScheme) private var colorScheme
     @Binding var text: String
@@ -40,7 +41,7 @@ struct ChatCapsule: View {
             }
             
             Button(action: {
-                // Camera Action
+                showCamera = true
             }) {
                 Label("Camera", systemImage: "camera")
             }
@@ -182,6 +183,16 @@ struct ChatCapsule: View {
             maxSelectionCount: 10,
             matching: .images
         )
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker(isPresented: $showCamera) { capturedImage in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    if selectedImages.count < 10 {
+                        selectedImages.append(capturedImage)
+                    }
+                }
+            }
+            .ignoresSafeArea()
+        }
         .onChange(of: selectedItems) { _, newItems in
             Task {
                 var loadedImages: [UIImage] = []

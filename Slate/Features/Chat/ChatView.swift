@@ -147,7 +147,7 @@ struct ChatView: View {
                     activeTab = .notes
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 15))
                         .foregroundColor(.primary)
                 }
             }
