@@ -21,9 +21,6 @@ struct ChatCapsule: View {
     var isInputFocused: FocusState<Bool>.Binding
     var onSend: () -> Void
     
-    @State private var dragOffset: CGSize = .zero
-    @State private var isDragging = false
-    
     private var isMultiline: Bool {
         text.contains("\n") || text.count > 38 || !selectedImages.isEmpty
     }
@@ -92,6 +89,7 @@ struct ChatCapsule: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: isMultiline ? 12 : 0) {
+            // 1. Image Previews Area
             if !selectedImages.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -131,46 +129,50 @@ struct ChatCapsule: View {
                 .padding(.bottom, 8)
             }
             
-            // Chat input textfield (Invariant hierarchy to preserve focus)
-            TextField("Ask Slate", text: $text, axis: .vertical)
-                .font(.system(size: 16))
-                .lineSpacing(5)
-                .textFieldStyle(.plain)
-                .focused(isInputFocused)
-                .disabled(isTextFieldDisabled)
-                .opacity(isGenerating ? 0.6 : 1.0)
-                .lineLimit(1...6)
-                .frame(minHeight: 36)
-                .padding(.horizontal, isMultiline ? 0 : 42)
-//                .padding(.trailing, isMultiline ? 0 : 42)
-                .onSubmit {
-                    onSend()
+            // 2. Main Row (Textfield & Inline buttons in single-line mode)
+            HStack(alignment: .bottom, spacing: 12) {
+                if !isMultiline {
+                    plusButton
                 }
-            
-            // Buttons Row (Invariant - exact same buttons slide down)
-            HStack(spacing: 12) {
-                plusButton
                 
-                Spacer()
+                TextField("Ask Slate", text: $text, axis: .vertical)
+                    .font(.system(size: 16))
+                    .lineSpacing(5)
+                    .textFieldStyle(.plain)
+                    .focused(isInputFocused)
+                    .disabled(isTextFieldDisabled)
+                    .opacity(isGenerating ? 0.6 : 1.0)
+                    .lineLimit(1...6)
+                    .frame(minHeight: 36)
+                    .onSubmit {
+                        onSend()
+                    }
                 
-                sendButton
+                if !isMultiline {
+                    sendButton
+                }
             }
-            .padding(.top, isMultiline ? 0 : -36)
+            
+            // 3. Multi-line Action Row (Plus and Send slide down below)
+            if isMultiline {
+                HStack(spacing: 12) {
+                    plusButton
+                    Spacer()
+                    sendButton
+                }
+            }
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 16)
         .background(
             RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
                 .fill(.clear)
-                .glassEffect(.regular.interactive(false), in: .rect(cornerRadius: currentCornerRadius))
+                .glassEffect(.regular.interactive(true), in: .rect(cornerRadius: currentCornerRadius))
                 .onTapGesture {
                     isInputFocused.wrappedValue = true
                 }
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isMultiline)
-        .scaleEffect(x: liquidScaleX, y: liquidScaleY)
-        .offset(x: dragOffset.width * 0.25, y: dragOffset.height * 0.25)
-        .simultaneousGesture(dragGesture)
         .padding(.horizontal, 21)
         .padding(.bottom, 4)
         .photosPicker(
@@ -206,48 +208,7 @@ struct ChatCapsule: View {
             }
         }
     }
-    
-    private var liquidScaleX: CGFloat {
-        let stretch = abs(dragOffset.width) * 0.0015 - abs(dragOffset.height) * 0.001
-        return min(max(1.0 + stretch, 0.8), 1.2)
-    }
-    
-    private var liquidScaleY: CGFloat {
-        let stretch = abs(dragOffset.height) * 0.0015 - abs(dragOffset.width) * 0.001
-        return min(max(1.0 + stretch, 0.8), 1.2)
-    }
-    
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 15)
-            .onChanged { value in
-                if !isDragging {
-                    isDragging = true
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                }
-                
-                let oldWidth = dragOffset.width
-                let newWidth = value.translation.width
-                if Int(abs(newWidth) / 20) != Int(abs(oldWidth) / 20) {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred(intensity: 0.5)
-                }
-                
-                let horizontalTranslation = value.translation.width
-                let verticalTranslation = value.translation.height
-                dragOffset = CGSize(width: horizontalTranslation, height: verticalTranslation)
-            }
-            .onEnded { _ in
-                if isDragging {
-                    isDragging = false
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
-                        dragOffset = .zero
-                    }
-                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                    generator.impactOccurred()
-                }
-            }
-    }
+
 }
 
 
