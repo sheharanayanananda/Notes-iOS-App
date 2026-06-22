@@ -80,14 +80,12 @@ struct ChatView: View {
                         VStack(spacing: 0) {
                             VStack(spacing: 24) {
                                 ForEach(messages) { message in
-                                    if message.role == "assistant" && message.content.isEmpty && isGenerating {
-                                        ChatLoadingBubbleView()
-                                            .id("loading")
-                                            .transition(.opacity.animation(.easeOut(duration: 0.1)))
-                                    } else {
-                                        ChatBubbleView(message: message, isNew: message.id == newlyGeneratedMessageId) {
-                                            self.scrollToBottom(proxy: proxy, delay: 0.0, animate: true)
-                                        }
+                                    ChatBubbleView(
+                                        message: message,
+                                        isNew: message.id == newlyGeneratedMessageId,
+                                        isGenerating: isGenerating && message.id == messages.last?.id
+                                    ) {
+                                        self.scrollToBottom(proxy: proxy, delay: 0.0, animate: true)
                                     }
                                 }
                                 
@@ -191,8 +189,8 @@ struct ChatView: View {
                     errorMessage = nil
                     chatText = ""
                 }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 18))
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundColor(.primary)
                 }
             }
@@ -381,6 +379,7 @@ struct ChatView: View {
 struct ChatBubbleView: View {
     let message: OllamaChatMessage
     var isNew: Bool = false
+    var isGenerating: Bool = false
     var onBlockRevealed: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     
@@ -388,24 +387,29 @@ struct ChatBubbleView: View {
         if message.role == "user" {
             VStack(alignment: .trailing, spacing: 8) {
                 if let images = message.images, !images.isEmpty {
+                    let cardSize: CGFloat = 100
+                    let spacing: CGFloat = 8
+                    let maxW: CGFloat = 300
+                    let contentWidth = CGFloat(images.count) * cardSize + CGFloat(images.count - 1) * spacing
+                    
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: spacing) {
                             ForEach(images, id: \.self) { base64Str in
                                 if let data = Data(base64Encoded: base64Str), let uiImage = UIImage(data: data) {
                                     Image(uiImage: uiImage)
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
-                                        .frame(width: 120, height: 120)
-                                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                        .frame(width: cardSize, height: cardSize)
+                                        .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            RoundedRectangle(cornerRadius: 25, style: .continuous)
                                                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                                         )
                                 }
                             }
                         }
                     }
-                    .frame(maxWidth: 260)
+                    .frame(width: min(contentWidth, maxW))
                 }
                 
                 if !message.content.isEmpty {
@@ -413,22 +417,26 @@ struct ChatBubbleView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .clipShape(RoundedRectangle(cornerRadius: 35, style: .continuous))
                         .textSelection(.enabled)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                MessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed)
-                    .textSelection(.enabled)
-                
-                if !message.content.isEmpty {
-                    HStack {
-                        CopyButton(text: message.content)
-                        Spacer()
+                if message.content.isEmpty && isGenerating {
+                    ChatLoadingStatusView()
+                } else {
+                    MessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed)
+                        .textSelection(.enabled)
+                    
+                    if !message.content.isEmpty {
+                        HStack {
+                            CopyButton(text: message.content)
+                            Spacer()
+                        }
+                        .padding(.top, 4)
                     }
-                    .padding(.top, 4)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -467,12 +475,6 @@ struct CopyButton: View {
     }
 }
 
-struct ChatLoadingBubbleView: View {
-    var body: some View {
-        ChatLoadingIndicator()
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
 
 struct ChatErrorBubbleView: View {
     let message: String
@@ -494,27 +496,60 @@ struct ChatErrorBubbleView: View {
     }
 }
 
-struct ChatLoadingIndicator: View {
-    @State private var isAnimating = false
+struct ChatLoadingStatusView: View {
+    @State private var entranceOpacity = 0.0
     
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<3) { index in
-                Circle()
-                    .fill(Color.secondary.opacity(0.8))
-                    .frame(width: 6, height: 6)
-                    .offset(y: isAnimating ? -6 : 0)
-                    .animation(
-                        .easeInOut(duration: 0.45)
-                        .repeatForever(autoreverses: true)
-                        .delay(Double(index) * 0.15),
-                        value: isAnimating
-                    )
+        TimelineView(.animation) { timelineContext in
+            let date = timelineContext.date
+            let timeInterval = date.timeIntervalSinceReferenceDate
+            let phase = CGFloat((timeInterval).truncatingRemainder(dividingBy: 1.8) / 1.8)
+            
+            HStack(spacing: 8) {
+                Text("Thinking")
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundColor(.primary)
+                
+                HStack(spacing: 3) {
+                    ForEach(0..<3) { index in
+                        let dotOffset = sin((timeInterval * 5.0) - Double(index) * 1.2) * 4.0
+                        Circle()
+                            .fill(Color.primary)
+                            .frame(width: 4, height: 4)
+                            .offset(y: dotOffset)
+                    }
+                }
+                .frame(width: 20, height: 10)
             }
-        }
-        .padding(.vertical, 8)
-        .onAppear {
-            isAnimating = true
+            .padding(.leading, 8)
+            .padding(.vertical, 8)
+            .mask(
+                GeometryReader { geo in
+                    let size = geo.size
+                    ZStack(alignment: .leading) {
+                        Color.black.opacity(0.35)
+                        
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                .clear,
+                                .black,
+                                .clear
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: size.width / 1.2)
+                        .offset(x: -size.width + (size.width * 2) * phase)
+                    }
+                }
+            )
+            .opacity(entranceOpacity)
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    entranceOpacity = 1.0
+                }
+            }
         }
     }
 }
+
