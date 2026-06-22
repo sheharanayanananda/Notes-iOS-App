@@ -15,10 +15,8 @@ struct ChatCapsule: View {
     var isInputFocused: FocusState<Bool>.Binding
     var onSend: () -> Void
     
-    // Internal liquid scale drag animation states
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
-    @State private var showAttachmentSheet = false
     
     private var isMultiline: Bool {
         text.contains("\n") || text.count > 33
@@ -28,11 +26,26 @@ struct ChatCapsule: View {
         isMultiline ? 32 : 35
     }
     
-    // Subviews to keep code clean and maintain exact same layout behaviors
     private var plusButton: some View {
-        Button(action: {
-            showAttachmentSheet = true
-        }) {
+        Menu {
+            Button(action: {
+                // Photos Action
+            }) {
+                Label("Photos", systemImage: "photo.on.rectangle")
+            }
+            
+            Button(action: {
+                // Camera Action
+            }) {
+                Label("Camera", systemImage: "camera")
+            }
+            
+            Button(action: {
+                // Documents Action
+            }) {
+                Label("Documents", systemImage: "doc.text")
+            }
+        } label: {
             Image(systemName: "plus")
                 .font(.system(size: 20))
                 .foregroundColor(.primary)
@@ -119,11 +132,6 @@ struct ChatCapsule: View {
         .simultaneousGesture(dragGesture)
         .padding(.horizontal, 21)
         .padding(.bottom, 4)
-        .sheet(isPresented: $showAttachmentSheet) {
-            AttachmentSheetView()
-                .presentationDetents([.height(200)])
-                .presentationDragIndicator(.visible)
-        }
     }
     
     private var liquidScaleX: CGFloat {
@@ -169,58 +177,4 @@ struct ChatCapsule: View {
     }
 }
 
-struct AttachmentOption: Identifiable {
-    let id = UUID()
-    let title: String
-    let icon: String
-    let color: Color
-}
 
-struct AttachmentSheetView: View {
-    @Environment(\.dismiss) private var dismiss
-    
-    let options = [
-        AttachmentOption(title: "Photos", icon: "photo.on.rectangle", color: .blue),
-        AttachmentOption(title: "Camera", icon: "camera", color: .green),
-        AttachmentOption(title: "Documents", icon: "doc.text", color: .orange)
-    ]
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 16) {
-                ForEach(options) { option in
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        VStack(spacing: 12) {
-                            Spacer()
-                            
-                            Image(systemName: option.icon)
-                                .font(.system(size: 28, weight: .medium))
-                                .foregroundColor(option.color)
-                            
-                            Text(option.title)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.primary)
-                            
-                            Spacer()
-                        }
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(1.0, contentMode: .fit)
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(ToolCardButtonStyle())
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 32)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-}
