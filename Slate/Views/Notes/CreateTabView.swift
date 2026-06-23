@@ -10,6 +10,9 @@ struct CreateTabView: View {
     // MARK: - Properties
     @State private var text: String = ""
     @State private var blockItems: [NoteBlockItem] = []
+    @State private var focusedBlockID: UUID? = nil
+    @State private var cursorPosition: Int? = nil
+    @State private var selectedBlockID: UUID? = nil
     
     @Binding var editingNote: SlateModel?
     @Binding var activeTab: ContentView.TabIdentifier
@@ -39,22 +42,36 @@ struct CreateTabView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach($blockItems) { $item in
                         if item.isSpecial {
-                            SpecialBlockWrapper(onDelete: {
-                                if let index = blockItems.firstIndex(where: { $0.id == item.id }) {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        _ = blockItems.remove(at: index)
-                                    }
-                                    text = NoteBlockUtility.combineBlockItems(blockItems)
+                            SpecialBlockWrapper(
+                                isSelected: selectedBlockID == item.id,
+                                onTap: {
+                                    selectedBlockID = item.id
+                                    focusedBlockID = nil
+                                },
+                                onBackspace: {
+                                    handleDeleteSpecialBlock(id: item.id)
                                 }
-                            }) {
+                            ) {
                                 BlockRenderer(block: item.block)
                             }
                         } else {
                             NativeTextView(
+                                id: item.id,
                                 text: $item.rawText,
-                                onEditingEnded: { handleEditingEnded() }
+                                focusedBlockID: $focusedBlockID,
+                                cursorPosition: $cursorPosition,
+                                onEditingEnded: { handleEditingEnded() },
+                                onBackspaceAtStart: {
+                                    handleBackspaceAtStart(item: item)
+                                },
+                                onDeleteAtEnd: {
+                                    handleDeleteAtEnd(item: item)
+                                }
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .simultaneousGesture(TapGesture().onEnded {
+                                selectedBlockID = nil
+                            })
                         }
                     }
                 }
@@ -466,3 +483,144 @@ struct SkeletonView: View {
         }
     }
 }
+
+// MARK: - Special Block Deletion/Merging Helpers
+extension CreateTabView {
+    private func handleBackspaceAtStart(item: NoteBlockItem) {
+        guard let index = blockItems.firstIndex(where: { $0.id == item.id }) else { return }
+        guard index > 0 else { return }
+        
+        let precedingIndex = index - 1
+        let precedingItem = blockItems[precedingIndex]
+        
+        if precedingItem.isSpecial {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            
+            withAnimation(.easeInOut(duration: 0.2)) {
+                _ = blockItems.remove(at: precedingIndex)
+            }
+            
+            let newPrecedingIndex = precedingIndex - 1
+            if newPrecedingIndex >= 0 {
+                let aboveItem = blockItems[newPrecedingIndex]
+                if !aboveItem.isSpecial {
+                    let currentBlockIndex = precedingIndex
+                    let currentItem = blockItems[currentBlockIndex]
+                    
+                    let originalLength = aboveItem.rawText.count
+                    let mergedText = aboveItem.rawText + (currentItem.rawText.isEmpty ? "" : "\n" + currentItem.rawText)
+                    
+                    blockItems[newPrecedingIndex].rawText = mergedText
+                    blockItems.remove(at: currentBlockIndex)
+                    
+                    focusedBlockID = aboveItem.id
+                    cursorPosition = originalLength
+                } else {
+                    focusedBlockID = item.id
+                    cursorPosition = 0
+                }
+            } else {
+                focusedBlockID = item.id
+                cursorPosition = 0
+            }
+            
+            text = NoteBlockUtility.combineBlockItems(blockItems)
+        }
+    }
+    
+    private func handleDeleteAtEnd(item: NoteBlockItem) {
+        guard let index = blockItems.firstIndex(where: { $0.id == item.id }) else { return }
+        guard index < blockItems.count - 1 else { return }
+        
+        let succeedingIndex = index + 1
+        let succeedingItem = blockItems[succeedingIndex]
+        
+        if succeedingItem.isSpecial {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            
+            withAnimation(.easeInOut(duration: 0.2)) {
+                _ = blockItems.remove(at: succeedingIndex)
+            }
+            
+            if succeedingIndex < blockItems.count {
+                let belowItem = blockItems[succeedingIndex]
+                if !belowItem.isSpecial {
+                    let originalLength = item.rawText.count
+                    let mergedText = item.rawText + (belowItem.rawText.isEmpty ? "" : "\n" + belowItem.rawText)
+                    
+                    blockItems[index].rawText = mergedText
+                    blockItems.remove(at: succeedingIndex)
+                    
+                    focusedBlockID = item.id
+                    cursorPosition = originalLength
+                } else {
+                    focusedBlockID = item.id
+                    cursorPosition = item.rawText.count
+                }
+            } else {
+                focusedBlockID = item.id
+                cursorPosition = item.rawText.count
+            }
+            
+            text = NoteBlockUtility.combineBlockItems(blockItems)
+        }
+    }
+    
+    private func handleDeleteSpecialBlock(id: UUID) {
+        guard let index = blockItems.firstIndex(where: { $0.id == id }) else { return }
+        let item = blockItems[index]
+        guard item.isSpecial else { return }
+        
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        
+        selectedBlockID = nil
+        
+        var targetFocusBlockID: UUID? = nil
+        var targetCursorPos: Int? = nil
+        
+        let hasAboveText = index > 0 && !blockItems[index - 1].isSpecial
+        let hasBelowText = index < blockItems.count - 1 && !blockItems[index + 1].isSpecial
+        
+        if hasAboveText && hasBelowText {
+            let aboveItem = blockItems[index - 1]
+            let belowItem = blockItems[index + 1]
+            let originalLength = aboveItem.rawText.count
+            let mergedText = aboveItem.rawText + (belowItem.rawText.isEmpty ? "" : "\n" + belowItem.rawText)
+            
+            blockItems[index - 1].rawText = mergedText
+            blockItems.remove(at: index + 1)
+            blockItems.remove(at: index)
+            
+            targetFocusBlockID = aboveItem.id
+            targetCursorPos = originalLength
+        } else if hasAboveText {
+            targetFocusBlockID = blockItems[index - 1].id
+            targetCursorPos = blockItems[index - 1].rawText.count
+            blockItems.remove(at: index)
+        } else if hasBelowText {
+            targetFocusBlockID = blockItems[index + 1].id
+            targetCursorPos = 0
+            blockItems.remove(at: index)
+        } else {
+            blockItems.remove(at: index)
+        }
+        
+        if blockItems.isEmpty {
+            let newTextItem = NoteBlockItem(isSpecial: false, rawText: "", block: .paragraph(text: ""))
+            blockItems.append(newTextItem)
+            targetFocusBlockID = newTextItem.id
+            targetCursorPos = 0
+        }
+        
+        if let focusID = targetFocusBlockID {
+            focusedBlockID = focusID
+            cursorPosition = targetCursorPos
+        }
+        
+        text = NoteBlockUtility.combineBlockItems(blockItems)
+    }
+}
+

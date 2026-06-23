@@ -64,7 +64,7 @@ class CheckboxAttachment: NSTextAttachment {
     }
     
     override func image(forBounds imageBounds: CGRect, textContainer: NSTextContainer?, characterIndex charIndex: Int) -> UIImage? {
-        let checkboxFont = UIFont.systemFont(ofSize: 20)
+        let checkboxFont = UIFont.systemFont(ofSize: 24)
         let config = UIImage.SymbolConfiguration(font: checkboxFont)
         let systemName = isChecked ? "checkmark.circle.fill" : "circle"
         let color = isChecked ? UIColor.systemBlue : UIColor.secondaryLabel.withAlphaComponent(0.6)
@@ -73,7 +73,7 @@ class CheckboxAttachment: NSTextAttachment {
     
     override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect, glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
         guard let textStorage = textContainer?.textStorage else {
-            return CGRect(x: 0, y: -3.5, width: 20, height: 20)
+            return CGRect(x: 0, y: -4.5, width: 24, height: 24)
         }
         
         let font: UIFont
@@ -85,7 +85,7 @@ class CheckboxAttachment: NSTextAttachment {
             font = UIFont.defaultSlateFont
         }
         
-        let size: CGFloat = 20
+        let size: CGFloat = 24
         let yOffset = (font.capHeight - size) / 2
         return CGRect(x: 0, y: yOffset, width: size, height: size)
     }
@@ -245,8 +245,13 @@ class SlateTextView: UITextView {
 }
 
 struct NativeTextView: UIViewRepresentable {
+    let id: UUID
     @Binding var text: String
+    @Binding var focusedBlockID: UUID?
+    @Binding var cursorPosition: Int?
     var onEditingEnded: (() -> Void)? = nil
+    var onBackspaceAtStart: (() -> Void)? = nil
+    var onDeleteAtEnd: (() -> Void)? = nil
     
     func makeUIView(context: Context) -> UITextView {
         let textView = SlateTextView()
@@ -331,6 +336,22 @@ struct NativeTextView: UIViewRepresentable {
     
     func updateUIView(_ uiView: UITextView, context: Context) {
         let slateTextView = uiView as? SlateTextView
+        
+        if focusedBlockID == id {
+            if !uiView.isFirstResponder {
+                // Focus the text view
+                uiView.becomeFirstResponder()
+            }
+            if let pos = cursorPosition {
+                let textLength = uiView.text.count
+                let safePos = min(max(0, pos), textLength)
+                uiView.selectedRange = NSRange(location: safePos, length: 0)
+                // Clear the position asynchronously to prevent triggering updates during layout pass
+                DispatchQueue.main.async {
+                    self.cursorPosition = nil
+                }
+            }
+        }
         
         if context.coordinator.lastParsedText != text && !context.coordinator.isUpdating {
             let font = UIFont.defaultSlateFont
@@ -799,7 +820,7 @@ struct NativeTextView: UIViewRepresentable {
             let glyphRange = layoutManager.glyphRange(forCharacterRange: NSRange(location: characterIndex, length: 1), actualCharacterRange: nil)
             let boundingRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textView.textContainer)
             
-            let expandedRect = boundingRect.insetBy(dx: -10, dy: -10)
+            let expandedRect = boundingRect.insetBy(dx: -18, dy: -18)
             
             if expandedRect.contains(adjustedLocation) {
                 let attribute = textView.textStorage.attribute(NSAttributedString.Key.attachment, at: characterIndex, effectiveRange: nil)
@@ -826,7 +847,7 @@ struct NativeTextView: UIViewRepresentable {
             let glyphRange = layoutManager.glyphRange(forCharacterRange: NSRange(location: characterIndex, length: 1), actualCharacterRange: nil)
             let boundingRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textView.textContainer)
             
-            let expandedRect = boundingRect.insetBy(dx: -10, dy: -10)
+            let expandedRect = boundingRect.insetBy(dx: -18, dy: -18)
             
             if expandedRect.contains(adjustedLocation) {
                 if let attachment = textView.textStorage.attribute(NSAttributedString.Key.attachment, at: characterIndex, effectiveRange: nil) as? CheckboxAttachment {
@@ -1337,6 +1358,15 @@ struct NativeTextView: UIViewRepresentable {
         }
         
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            if text.isEmpty && range.length == 0 {
+                if range.location == 0 {
+                    parent.onBackspaceAtStart?()
+                    return false
+                } else if range.location == textView.text.count {
+                    parent.onDeleteAtEnd?()
+                    return false
+                }
+            }
             if text == "\n" {
                 let string = textView.textStorage.string as NSString
                 let lineRange = string.lineRange(for: NSRange(location: range.location, length: 0))
