@@ -16,9 +16,6 @@ struct CreateTabView: View {
     
     @Binding var editingNote: SlateModel?
     @Binding var activeTab: ContentView.TabIdentifier
-    @Binding var isLensProcessing: Bool
-    @Binding var lensStatus: String
-    @Binding var lensResultText: String
 
     @Environment(\.modelContext) private var context
     @State private var showEmptyWarning: Bool = false
@@ -79,7 +76,7 @@ struct CreateTabView: View {
                 .padding(.vertical, 16)
             }
             
-            if isLensProcessing || isAnimatingText || isOrganizing {
+            if isAnimatingText || isOrganizing {
                 SkeletonView(typedLinesCount: typedLinesCount)
                     .id(skeletonSessionID)
                     .transition(.opacity)
@@ -113,16 +110,7 @@ struct CreateTabView: View {
                 blockItems = NoteBlockUtility.splitIntoBlockItems(newValue)
             }
         }
-        .onChange(of: lensResultText) { _, newValue in
-            if !newValue.isEmpty {
-                animateTextLineByLine(newValue)
-            }
-        }
-        .onChange(of: isLensProcessing) { _, newValue in
-            if newValue {
-                skeletonSessionID = UUID()
-            }
-        }
+
         .navigationTitle((editingNote == nil || editingNote?.modelContext == nil) ? "New Note" : "Edit Note")
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
@@ -274,9 +262,7 @@ extension CreateTabView {
         text = ""
         blockItems = NoteBlockUtility.splitIntoBlockItems("")
         editingNote = nil
-        isLensProcessing = false
         isAnimatingText = false
-        lensResultText = ""
         animationTask?.cancel()
     }
     
@@ -325,25 +311,14 @@ extension CreateTabView {
     
     private var aiSystemPrompt: String {
         """
-        You are an expert note organizer. Your task is to analyze the content and context of the provided note and reorganize/summarize it to make it highly readable, clear, structured, and easy to use.
-        
-        You can use all Markdown formatting features supported by our editor:
-        1. Headers: Use `#`, `##`, `###` for main headers and section titles.
-        2. Checklists: `- [ ] Item` (use for tasks, todos, shopping items, checklists).
-        3. Bullet lists: `- Item` (use for lists, details, brainstorms).
-        4. Numbered lists: `1. Item` (use for sequences, chronological steps, recipes).
-        5. Inline formatting: Bold `**text**`, Italic `*text*`, Underline `<u>text</u>`, Strikethrough `~~text~~`.
-        6. Tables: Use standard Markdown table syntax `| header 1 | header 2 |` to organize structured tabular data.
-        7. Code blocks: Use triple backticks ``` for snippets, calculations, or monospaced text segments.
-        8. LaTeX: Use inline `$` or display `$$` blocks for mathematical equations and formulas.
-        9. Alerts: Use GitHub-style alerts for important callouts (e.g., `> [!NOTE]` or `> [!TIP]`).
-        10. Blockquotes: Use `>` for quotes or citations.
-        
-        ### Strictly Forbidden:
-        - No HTML tags except `<u>` and `</u>`.
-        - No Emojis anywhere in the note.
-        - No Fenced Code Blocks around your entire output (do NOT wrap your entire response in triple backticks).
-        - No Conversational Preamble or explanations. Output ONLY the raw note.
+        You are an expert note organizer. Your task is to analyze the content and context of the provided note and reorganize, structure, and refine it to make it highly readable, clear, and actionable.
+
+        # Instructions
+        1. **Identify the Core Subject:** Determine the main topic of the note and create a clear heading hierarchy.
+        2. **Synthesize Details:** Group scattered thoughts into logical sub-sections (`## Section`).
+        3. **Apply Clean Markdown:** Use checklists (`- [ ]`) for tasks/todos, bullet lists (`-`) for brainstorms, and tables for data points.
+        4. **Tone & Style:** Maintain the user's intent but polish grammar, remove duplicate thoughts, and format text for rapid scanning.
+        5. **No Meta-Commentary:** Do not include introductory/outro sentences (e.g. "Here is your reorganized note:"). Output only the organized note content.
         """
     }
     
@@ -400,7 +375,6 @@ extension CreateTabView {
             withAnimation(.easeInOut(duration: 0.3)) {
                 isAnimatingText = false
             }
-            lensResultText = ""
         }
     }
 }

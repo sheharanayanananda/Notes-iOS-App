@@ -122,7 +122,7 @@ struct SlateTabView: View {
         }
         .navigationTitle("Slate")
         .toolbarTitleDisplayMode(.automatic)
-
+        .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button(action: {
                     onOpenSettings()
