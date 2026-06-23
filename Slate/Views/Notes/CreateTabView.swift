@@ -9,6 +9,7 @@ import SwiftData
 struct CreateTabView: View {
     // MARK: - Properties
     @State private var text: String = ""
+    @State private var blockItems: [NoteBlockItem] = []
     
     @Binding var editingNote: SlateModel?
     @Binding var activeTab: ContentView.TabIdentifier
@@ -33,32 +34,66 @@ struct CreateTabView: View {
 
     // MARK: - UI Code
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                if isLensProcessing || isAnimatingText || isOrganizing {
-                    SkeletonView(typedLinesCount: typedLinesCount)
-                        .id(skeletonSessionID)
-                        .transition(.opacity)
+        ZStack(alignment: .topLeading) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach($blockItems) { $item in
+                        if item.isSpecial {
+                            SpecialBlockWrapper(onDelete: {
+                                if let index = blockItems.firstIndex(where: { $0.id == item.id }) {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        _ = blockItems.remove(at: index)
+                                    }
+                                    text = NoteBlockUtility.combineBlockItems(blockItems)
+                                }
+                            }) {
+                                BlockRenderer(block: item.block)
+                            }
+                        } else {
+                            NativeTextView(
+                                text: $item.rawText,
+                                onEditingEnded: { handleEditingEnded() }
+                            )
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                 }
-                
-                NativeTextView(text: $text)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+            }
+            
+            if isLensProcessing || isAnimatingText || isOrganizing {
+                SkeletonView(typedLinesCount: typedLinesCount)
+                    .id(skeletonSessionID)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
             }
         }
         .onAppear {
             if let note = editingNote {
                 text = note.desc
+                blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
                 wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
             } else {
+                text = ""
+                blockItems = NoteBlockUtility.splitIntoBlockItems("")
                 wasTitlePreGenerated = false
             }
         }
         .onChange(of: editingNote) { _, newValue in
             if let note = newValue {
                 text = note.desc
+                blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
                 wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
             } else {
                 text = ""
+                blockItems = NoteBlockUtility.splitIntoBlockItems("")
                 wasTitlePreGenerated = false
+            }
+        }
+        .onChange(of: text) { _, newValue in
+            if isAnimatingText || isOrganizing {
+                blockItems = NoteBlockUtility.splitIntoBlockItems(newValue)
             }
         }
         .onChange(of: lensResultText) { _, newValue in
@@ -118,6 +153,7 @@ struct CreateTabView: View {
 // MARK: - Main Functions
 extension CreateTabView {
     private func saveNote() {
+        text = NoteBlockUtility.combineBlockItems(blockItems)
         let trimmedDesc = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDesc.isEmpty {
             showEmptyWarning = true
@@ -165,6 +201,7 @@ extension CreateTabView {
             isOrganizing = true
             isAnimatingText = false
             text = "" // Clear text immediately to display the skeleton loader
+            blockItems = NoteBlockUtility.splitIntoBlockItems("")
         }
         
         Task {
@@ -213,11 +250,23 @@ extension CreateTabView {
 extension CreateTabView {
     private func reset() {
         text = ""
+        blockItems = NoteBlockUtility.splitIntoBlockItems("")
         editingNote = nil
         isLensProcessing = false
         isAnimatingText = false
         lensResultText = ""
         animationTask?.cancel()
+    }
+    
+    private func handleEditingEnded() {
+        let combined = NoteBlockUtility.combineBlockItems(blockItems)
+        text = combined
+        let parsed = NoteBlockUtility.splitIntoBlockItems(combined)
+        if parsed != blockItems {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                blockItems = parsed
+            }
+        }
     }
     
     private func generateInitialTitle(from text: String) -> String {
@@ -254,34 +303,23 @@ extension CreateTabView {
         """
         You are an expert note organizer. Your task is to analyze the content and context of the provided note and reorganize/summarize it to make it highly readable, clear, structured, and easy to use.
         
-        CRITICAL: You must only use the following Markdown formatting features supported by our editor:
-        1. Checklists: `- [ ] Item` (use for todos, tasks, shopping items, checklists)
-        2. Bullet points: `- Item` (use for lists, details, brainstorms)
-        3. Numbered lists: `1. Item` (use for sequences, steps, recipes)
-        4. Indentation: Prepend exactly 2 spaces per indentation level for nested sub-points (e.g. `  - Sub-point` or `  - [ ] Sub-task`)
-        5. Inline formatting:
-           - Bold: `**text**`
-           - Italic: `*text*`
-           - Underline: `<u>text</u>`
-           - Strikethrough: `~~text~~`
+        You can use all Markdown formatting features supported by our editor:
+        1. Headers: Use `#`, `##`, `###` for main headers and section titles.
+        2. Checklists: `- [ ] Item` (use for tasks, todos, shopping items, checklists).
+        3. Bullet lists: `- Item` (use for lists, details, brainstorms).
+        4. Numbered lists: `1. Item` (use for sequences, chronological steps, recipes).
+        5. Inline formatting: Bold `**text**`, Italic `*text*`, Underline `<u>text</u>`, Strikethrough `~~text~~`.
+        6. Tables: Use standard Markdown table syntax `| header 1 | header 2 |` to organize structured tabular data.
+        7. Code blocks: Use triple backticks ``` for snippets, calculations, or monospaced text segments.
+        8. LaTeX: Use inline `$` or display `$$` blocks for mathematical equations and formulas.
+        9. Alerts: Use GitHub-style alerts for important callouts (e.g., `> [!NOTE]` or `> [!TIP]`).
+        10. Blockquotes: Use `>` for quotes or citations.
         
-        ### Strictly Forbidden elements:
-        - No Markdown headers like `#` or `##` (use bolding or underlining instead)
-        - No Markdown tables (use bullet points or indented lists to organize attributes instead)
-        - No Blockquotes (>) or code blocks (```)
-        - No HTML tags except `<u>` and `</u>`
-        - No Emojis anywhere in the note
-        - No Fenced Code Blocks (do NOT wrap your output in triple backticks)
-        - No Conversational Preamble or explanations.
-        
-        ### Intelligence & Context Guidelines:
-        - **Shopping/Todo Lists**: If the note contains lists of items to buy, tasks to perform, or actions, structure them as checkbox items: `- [ ] Item`. Do NOT apply bolding (`**`) or any other inline styling to the checkbox items; keep the item text as plain text.
-        - **Recipes/Processes**: If the note describes step-by-step instructions or procedures, format them as numbered lists: `1. Step`.
-        - **Receipts/Financials**: Organize receipt data into key-value descriptions using bold and underline rather than tables, for example:
-          `**Merchant:** Store Name`
-          `**Total:** $12.34`
-          `  - Item 1: $10.00`
-          `  - Taxes: $2.34`
+        ### Strictly Forbidden:
+        - No HTML tags except `<u>` and `</u>`.
+        - No Emojis anywhere in the note.
+        - No Fenced Code Blocks around your entire output (do NOT wrap your entire response in triple backticks).
+        - No Conversational Preamble or explanations. Output ONLY the raw note.
         """
     }
     

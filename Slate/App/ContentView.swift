@@ -104,7 +104,7 @@ struct ContentView: View {
 
                 if showChatView {
                     NavigationStack {
-                        ChatView(activeTab: $activeTab)
+                        ChatView(activeTab: $activeTab, editingNote: $editingNote)
                     }
                     .transition(.move(edge: .trailing))
                     .zIndex(2)

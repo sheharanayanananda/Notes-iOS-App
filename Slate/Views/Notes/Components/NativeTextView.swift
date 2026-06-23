@@ -252,6 +252,7 @@ class SlateTextView: UITextView {
 
 struct NativeTextView: UIViewRepresentable {
     @Binding var text: String
+    var onEditingEnded: (() -> Void)? = nil
     
     func makeUIView(context: Context) -> UITextView {
         let textView = SlateTextView()
@@ -259,7 +260,7 @@ struct NativeTextView: UIViewRepresentable {
         context.coordinator.textView = textView
         
         textView.backgroundColor = .clear
-        textView.isScrollEnabled = true
+        textView.isScrollEnabled = false
         
         let bodyFont = UIFont.preferredFont(forTextStyle: .body)
         textView.font = bodyFont
@@ -274,9 +275,15 @@ struct NativeTextView: UIViewRepresentable {
             .paragraphStyle: defaultParagraphStyle
         ]
         
-        // Match native notes text container inset with 24pt side margins to align with toolbar
-        textView.textContainerInset = UIEdgeInsets(top: 16, left: 24, bottom: 16, right: 24)
+        // Allow SwiftUI to compress this view horizontally — required so sizeThatFits
+        // can propose the correct width and UITextView wraps at the right boundary.
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        
+        // Align with special block padding (horizontal 24 is managed by the parent ScrollView)
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
         textView.textContainer.lineFragmentPadding = 0
+        textView.textContainer.widthTracksTextView = true
         
         let accessoryView = NativeKeyboardToolbar(
             onToggleChecklist: {
@@ -361,6 +368,24 @@ struct NativeTextView: UIViewRepresentable {
             context.coordinator.lastParsedText = text
             slateTextView?.isLayoutUpdating = false
         }
+    }
+    
+    /// Tells SwiftUI the exact size this text view needs given the proposed (available) width.
+    /// This is the canonical fix for UITextView intrinsic-size overflow in UIViewRepresentable:
+    /// UITextView measures itself with unlimited width by default, returning the longest line
+    /// length as its intrinsic width. sizeThatFits intercepts that and clamps to the proposed
+    /// width, asking UITextView how tall it needs at that width, ensuring proper text wrapping.
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView: UITextView,
+        context: Context
+    ) -> CGSize? {
+        let width = proposal.width ?? UIScreen.main.bounds.width
+        guard width > 0, width < .infinity else { return nil }
+        let fitting = uiView.sizeThatFits(
+            CGSize(width: width, height: .greatestFiniteMagnitude)
+        )
+        return CGSize(width: width, height: max(fitting.height, 44))
     }
     
     func makeCoordinator() -> Coordinator {
@@ -1212,6 +1237,10 @@ struct NativeTextView: UIViewRepresentable {
             let newText = NativeTextView.serializeToString(attributed: textView.attributedText)
             self.lastParsedText = newText
             parent.text = newText
+        }
+        
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.onEditingEnded?()
         }
         
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {

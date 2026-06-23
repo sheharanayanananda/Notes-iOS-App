@@ -6,11 +6,14 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ChatView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var context
     @Binding var activeTab: ContentView.TabIdentifier
+    @Binding var editingNote: SlateModel?
     
     @State private var chatText = ""
     @State private var selectedImages: [UIImage] = []
@@ -85,7 +88,9 @@ struct ChatView: View {
                                     ChatBubbleView(
                                         message: message,
                                         isNew: message.id == newlyGeneratedMessageId,
-                                        isGenerating: isGenerating && message.id == messages.last?.id
+                                        isGenerating: isGenerating && message.id == messages.last?.id,
+                                        activeTab: $activeTab,
+                                        editingNote: $editingNote
                                     ) {
                                         self.scrollToBottom(proxy: proxy, delay: 0.0, animate: true)
                                     }
@@ -381,7 +386,7 @@ extension ChatView {
 
 #Preview {
     NavigationStack {
-        ChatView(activeTab: .constant(.notes))
+        ChatView(activeTab: .constant(.notes), editingNote: .constant(nil))
     }
 }
 
@@ -392,8 +397,11 @@ struct ChatBubbleView: View {
     let message: OllamaChatMessage
     var isNew: Bool = false
     var isGenerating: Bool = false
+    @Binding var activeTab: ContentView.TabIdentifier
+    @Binding var editingNote: SlateModel?
     var onBlockRevealed: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var context
     
     var body: some View {
         if message.role == "user" {
@@ -482,8 +490,9 @@ struct ChatBubbleView: View {
                         .textSelection(.enabled)
                     
                     if !message.content.isEmpty {
-                        HStack {
+                        HStack(spacing: 8) {
                             CopyButton(text: message.content)
+                            AddToNoteButton(text: message.content, activeTab: $activeTab, editingNote: $editingNote, context: context)
                             Spacer()
                         }
                         .padding(.top, 4)
@@ -523,6 +532,41 @@ struct CopyButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct AddToNoteButton: View {
+    let text: String
+    @Binding var activeTab: ContentView.TabIdentifier
+    @Binding var editingNote: SlateModel?
+    let context: ModelContext
+    
+    var body: some View {
+        Button(action: {
+            let initialTitle = generateInitialTitle(from: text)
+            let newNote = SlateModel(title: initialTitle, desc: text)
+            context.insert(newNote)
+            
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            
+            editingNote = newNote
+            activeTab = .create
+        }) {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 15))
+                .foregroundColor(.secondary)
+                .frame(width: 32, height: 32)
+                .background(Color.clear)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func generateInitialTitle(from text: String) -> String {
+        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+        let firstThree = words.prefix(3).joined(separator: " ")
+        return firstThree.isEmpty ? "New Note" : String(firstThree)
     }
 }
 
