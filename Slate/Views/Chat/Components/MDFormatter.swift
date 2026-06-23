@@ -481,9 +481,10 @@ struct MarkdownParser {
                 flushTable()
             }
             
-            // 7. Plain Paragraph (Accumulating text lines)
+            // 7. Plain Paragraph (Flushing immediately on newline)
             if !trimmed.isEmpty {
                 currentParagraphLines.append(line)
+                flushParagraph()
             } else {
                 flushParagraph()
             }

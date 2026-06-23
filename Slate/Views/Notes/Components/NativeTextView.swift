@@ -20,6 +20,10 @@ extension NSTextContainer {
 }
 
 extension UIFont {
+    static var defaultSlateFont: UIFont {
+        return UIFont.systemFont(ofSize: 16)
+    }
+    
     func bold() -> UIFont {
         var traits = fontDescriptor.symbolicTraits
         traits.insert(.traitBold)
@@ -60,26 +64,16 @@ class CheckboxAttachment: NSTextAttachment {
     }
     
     override func image(forBounds imageBounds: CGRect, textContainer: NSTextContainer?, characterIndex charIndex: Int) -> UIImage? {
-        guard let textStorage = textContainer?.textStorage else { return nil }
-        
-        let font: UIFont
-        var range = NSRange(location: 0, length: 0)
-        if charIndex < textStorage.length,
-           let f = textStorage.attribute(NSAttributedString.Key.font, at: charIndex, effectiveRange: &range) as? UIFont {
-            font = f
-        } else {
-            font = UIFont.preferredFont(forTextStyle: .body)
-        }
-        
-        let config = UIImage.SymbolConfiguration(font: font)
+        let checkboxFont = UIFont.systemFont(ofSize: 20)
+        let config = UIImage.SymbolConfiguration(font: checkboxFont)
         let systemName = isChecked ? "checkmark.circle.fill" : "circle"
-        let color = isChecked ? UIColor.systemBlue : UIColor.tertiaryLabel
+        let color = isChecked ? UIColor.systemBlue : UIColor.secondaryLabel.withAlphaComponent(0.6)
         return UIImage(systemName: systemName, withConfiguration: config)?.withTintColor(color, renderingMode: .alwaysOriginal)
     }
     
     override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect, glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
         guard let textStorage = textContainer?.textStorage else {
-            return CGRect(x: 0, y: -4, width: 22, height: 22)
+            return CGRect(x: 0, y: -3.5, width: 20, height: 20)
         }
         
         let font: UIFont
@@ -88,10 +82,10 @@ class CheckboxAttachment: NSTextAttachment {
            let f = textStorage.attribute(NSAttributedString.Key.font, at: charIndex, effectiveRange: &range) as? UIFont {
             font = f
         } else {
-            font = UIFont.preferredFont(forTextStyle: .body)
+            font = UIFont.defaultSlateFont
         }
         
-        let size = font.lineHeight
+        let size: CGFloat = 20
         let yOffset = (font.capHeight - size) / 2
         return CGRect(x: 0, y: yOffset, width: size, height: size)
     }
@@ -214,7 +208,7 @@ class SlateTextView: UITextView {
     
     override func caretRect(for position: UITextPosition) -> CGRect {
         if isLayoutUpdating {
-            let defaultFont = self.font ?? UIFont.preferredFont(forTextStyle: .body)
+            let defaultFont = self.font ?? UIFont.defaultSlateFont
             return CGRect(x: 24, y: 16, width: 2, height: defaultFont.lineHeight)
         }
         
@@ -228,17 +222,17 @@ class SlateTextView: UITextView {
             if let f = self.attributedText.attribute(.font, at: offset - 1, effectiveRange: &range) as? UIFont {
                 font = f
             } else {
-                font = self.font ?? UIFont.preferredFont(forTextStyle: .body)
+                font = self.font ?? UIFont.defaultSlateFont
             }
         } else if offset == 0 && self.attributedText.length > 0 {
             var range = NSRange(location: 0, length: 0)
             if let f = self.attributedText.attribute(.font, at: 0, effectiveRange: &range) as? UIFont {
                 font = f
             } else {
-                font = self.font ?? UIFont.preferredFont(forTextStyle: .body)
+                font = self.font ?? UIFont.defaultSlateFont
             }
         } else {
-            font = self.font ?? UIFont.preferredFont(forTextStyle: .body)
+            font = self.font ?? UIFont.defaultSlateFont
         }
         
         let targetHeight = font.lineHeight
@@ -262,11 +256,12 @@ struct NativeTextView: UIViewRepresentable {
         textView.backgroundColor = .clear
         textView.isScrollEnabled = false
         
-        let bodyFont = UIFont.preferredFont(forTextStyle: .body)
+        let bodyFont = UIFont.defaultSlateFont
         textView.font = bodyFont
         textView.textColor = UIColor.label
         
         let defaultParagraphStyle = NSMutableParagraphStyle()
+        defaultParagraphStyle.lineSpacing = 3.0
         defaultParagraphStyle.paragraphSpacing = 8
         
         textView.typingAttributes = [
@@ -281,7 +276,8 @@ struct NativeTextView: UIViewRepresentable {
         textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         
         // Align with special block padding (horizontal 24 is managed by the parent ScrollView)
-        textView.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        // Set vertical to 0 so spacing matches SwiftUI's standard Stack layouts.
+        textView.textContainerInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         textView.textContainer.lineFragmentPadding = 0
         textView.textContainer.widthTracksTextView = true
         
@@ -337,7 +333,7 @@ struct NativeTextView: UIViewRepresentable {
         let slateTextView = uiView as? SlateTextView
         
         if context.coordinator.lastParsedText != text && !context.coordinator.isUpdating {
-            let font = UIFont.preferredFont(forTextStyle: .body)
+            let font = UIFont.defaultSlateFont
             let attr = NativeTextView.parseToAttributed(text: text, font: font)
             
             let selectedRange = uiView.selectedRange
@@ -352,6 +348,7 @@ struct NativeTextView: UIViewRepresentable {
             context.coordinator.isUpdating = false
             
             let defaultParagraphStyle = NSMutableParagraphStyle()
+            defaultParagraphStyle.lineSpacing = 3.0
             defaultParagraphStyle.paragraphSpacing = 8
             
             uiView.typingAttributes = [
@@ -383,12 +380,18 @@ struct NativeTextView: UIViewRepresentable {
         uiView: UITextView,
         context: Context
     ) -> CGSize? {
-        let width = proposal.width ?? UIScreen.main.bounds.width
+        var defaultWidth: CGFloat = 375
+        if let windowScene = uiView.window?.windowScene {
+            defaultWidth = windowScene.screen.bounds.width
+        } else if let windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+            defaultWidth = windowScene.screen.bounds.width
+        }
+        let width = proposal.width ?? defaultWidth
         guard width > 0, width < .infinity else { return nil }
         let fitting = uiView.sizeThatFits(
             CGSize(width: width, height: .greatestFiniteMagnitude)
         )
-        return CGSize(width: width, height: max(fitting.height, 44))
+        return CGSize(width: width, height: max(fitting.height, 24))
     }
     
     func makeCoordinator() -> Coordinator {
@@ -428,6 +431,16 @@ struct NativeTextView: UIViewRepresentable {
         
         parseAndReplaceTag(attrString, pattern: #"~~(.*?)~~"#, font: font) { mutableContent, range, _ in
             mutableContent.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+        }
+        
+        parseAndReplaceTag(attrString, pattern: #"`(.*?)`"#, font: font) { mutableContent, range, _ in
+            mutableContent.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
+                let currentFont = value as? UIFont ?? font
+                let isBold = currentFont.isBold
+                let codeFont = UIFont.monospacedSystemFont(ofSize: 14, weight: isBold ? .bold : .medium)
+                mutableContent.addAttribute(.font, value: codeFont, range: subRange)
+                mutableContent.addAttribute(.backgroundColor, value: UIColor.label.withAlphaComponent(0.08), range: subRange)
+            }
         }
         
         parseAndReplaceTag(attrString, pattern: #"\*\*(.*?)\*\*"#, font: font) { mutableContent, range, _ in
@@ -489,7 +502,15 @@ struct NativeTextView: UIViewRepresentable {
     
     static func parseToAttributed(text: String, font: UIFont) -> NSAttributedString {
         let result = NSMutableAttributedString()
-        let sanitizedText = text.replacingOccurrences(of: "\r", with: "")
+        var sanitizedText = text
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "<br>", with: "\n")
+            .replacingOccurrences(of: "<br/>", with: "\n")
+            .replacingOccurrences(of: "<br />", with: "\n")
+        
+        while sanitizedText.contains("\n\n") {
+            sanitizedText = sanitizedText.replacingOccurrences(of: "\n\n", with: "\n")
+        }
         let lines = sanitizedText.components(separatedBy: "\n")
         
         for (index, line) in lines.enumerated() {
@@ -501,25 +522,29 @@ struct NativeTextView: UIViewRepresentable {
             checklistParagraphStyle.headIndent = indentOffset + 32
             checklistParagraphStyle.firstLineHeadIndent = indentOffset
             checklistParagraphStyle.paragraphSpacing = 8
+            checklistParagraphStyle.lineSpacing = 3.0
             
             let bulletParagraphStyle = NSMutableParagraphStyle()
-            bulletParagraphStyle.headIndent = indentOffset + 16
+            bulletParagraphStyle.headIndent = indentOffset + 18
             bulletParagraphStyle.firstLineHeadIndent = indentOffset
             bulletParagraphStyle.paragraphSpacing = 8
+            bulletParagraphStyle.lineSpacing = 3.0
             
             let numberedParagraphStyle = NSMutableParagraphStyle()
-            numberedParagraphStyle.headIndent = indentOffset + 20
+            numberedParagraphStyle.headIndent = indentOffset + 24
             numberedParagraphStyle.firstLineHeadIndent = indentOffset
             numberedParagraphStyle.paragraphSpacing = 8
+            numberedParagraphStyle.lineSpacing = 3.0
             
             let normalParagraphStyle = NSMutableParagraphStyle()
             normalParagraphStyle.headIndent = indentOffset
             normalParagraphStyle.firstLineHeadIndent = indentOffset
             normalParagraphStyle.paragraphSpacing = 8
+            normalParagraphStyle.lineSpacing = 3.0
             
             // --- Headers (h1 / h2 / h3) ---
             if strippedLine.hasPrefix("### ") {
-                let headerFont = UIFont.preferredFont(forTextStyle: .title3).bold()
+                let headerFont = UIFont.systemFont(ofSize: 18, weight: .bold)
                 let text = String(strippedLine.dropFirst(4))
                 let attrString = parseInlineMarkdown(text, font: headerFont)
                 let mutableAttr = NSMutableAttributedString(attributedString: attrString)
@@ -528,10 +553,11 @@ struct NativeTextView: UIViewRepresentable {
                 headerStyle.firstLineHeadIndent = indentOffset
                 headerStyle.paragraphSpacing = 4
                 headerStyle.paragraphSpacingBefore = 8
+                headerStyle.lineSpacing = 3.0
                 mutableAttr.addAttribute(.paragraphStyle, value: headerStyle, range: NSRange(location: 0, length: mutableAttr.length))
                 result.append(mutableAttr)
             } else if strippedLine.hasPrefix("## ") {
-                let headerFont = UIFont.preferredFont(forTextStyle: .title2).bold()
+                let headerFont = UIFont.systemFont(ofSize: 21, weight: .bold)
                 let text = String(strippedLine.dropFirst(3))
                 let attrString = parseInlineMarkdown(text, font: headerFont)
                 let mutableAttr = NSMutableAttributedString(attributedString: attrString)
@@ -540,10 +566,11 @@ struct NativeTextView: UIViewRepresentable {
                 headerStyle.firstLineHeadIndent = indentOffset
                 headerStyle.paragraphSpacing = 4
                 headerStyle.paragraphSpacingBefore = 10
+                headerStyle.lineSpacing = 3.0
                 mutableAttr.addAttribute(.paragraphStyle, value: headerStyle, range: NSRange(location: 0, length: mutableAttr.length))
                 result.append(mutableAttr)
             } else if strippedLine.hasPrefix("# ") {
-                let headerFont = UIFont.preferredFont(forTextStyle: .title1).bold()
+                let headerFont = UIFont.systemFont(ofSize: 24, weight: .bold)
                 let text = String(strippedLine.dropFirst(2))
                 let attrString = parseInlineMarkdown(text, font: headerFont)
                 let mutableAttr = NSMutableAttributedString(attributedString: attrString)
@@ -552,18 +579,20 @@ struct NativeTextView: UIViewRepresentable {
                 headerStyle.firstLineHeadIndent = indentOffset
                 headerStyle.paragraphSpacing = 6
                 headerStyle.paragraphSpacingBefore = 12
+                headerStyle.lineSpacing = 3.0
                 mutableAttr.addAttribute(.paragraphStyle, value: headerStyle, range: NSRange(location: 0, length: mutableAttr.length))
                 result.append(mutableAttr)
             // --- Blockquotes ---
             } else if strippedLine.hasPrefix("> ") {
                 let text = String(strippedLine.dropFirst(2))
-                let quoteFont = UIFont.preferredFont(forTextStyle: .body).italic()
+                let quoteFont = UIFont.systemFont(ofSize: 16).italic()
                 let attrString = parseInlineMarkdown(text, font: quoteFont)
                 let mutableAttr = NSMutableAttributedString(attributedString: attrString)
                 let quoteStyle = NSMutableParagraphStyle()
                 quoteStyle.headIndent = indentOffset + 16
                 quoteStyle.firstLineHeadIndent = indentOffset + 16
                 quoteStyle.paragraphSpacing = 8
+                quoteStyle.lineSpacing = 3.0
                 mutableAttr.addAttribute(.paragraphStyle, value: quoteStyle, range: NSRange(location: 0, length: mutableAttr.length))
                 mutableAttr.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: NSRange(location: 0, length: mutableAttr.length))
                 result.append(mutableAttr)
@@ -572,7 +601,7 @@ struct NativeTextView: UIViewRepresentable {
                 let attachment = CheckboxAttachment(isChecked: false)
                 let attrString = NSMutableAttributedString(attachment: attachment)
                 let contentText = String(strippedLine.dropFirst(6))
-                let contentAttr = parseInlineMarkdown(" " + contentText, font: font)
+                let contentAttr = parseInlineMarkdown("  " + contentText, font: font)
                 attrString.append(contentAttr)
                 
                 attrString.addAttribute(.paragraphStyle, value: checklistParagraphStyle, range: NSRange(location: 0, length: attrString.length))
@@ -583,7 +612,7 @@ struct NativeTextView: UIViewRepresentable {
                 let attachment = CheckboxAttachment(isChecked: true)
                 let attrString = NSMutableAttributedString(attachment: attachment)
                 let contentText = String(strippedLine.dropFirst(6))
-                let contentAttr = parseInlineMarkdown(" " + contentText, font: font)
+                let contentAttr = parseInlineMarkdown("  " + contentText, font: font)
                 
                 let mutableContent = NSMutableAttributedString(attributedString: contentAttr)
                 let textRange = NSRange(location: 0, length: mutableContent.length)
@@ -599,22 +628,23 @@ struct NativeTextView: UIViewRepresentable {
             } else if strippedLine.hasPrefix("- ") || strippedLine.hasPrefix("• ") {
                 let contentText = String(strippedLine.dropFirst(2))
                 let contentAttr = parseInlineMarkdown(contentText, font: font)
-                let attrString = NSMutableAttributedString(string: "• ")
+                let attrString = NSMutableAttributedString(string: "•  ")
                 attrString.append(contentAttr)
                 
                 attrString.addAttribute(.paragraphStyle, value: bulletParagraphStyle, range: NSRange(location: 0, length: attrString.length))
-                attrString.addAttributes([.font: font, .foregroundColor: UIColor.label], range: NSRange(location: 0, length: 2))
+                attrString.addAttributes([.font: font, .foregroundColor: UIColor.label], range: NSRange(location: 0, length: 3))
                 
                 result.append(attrString)
             } else if let numberMatch = strippedLine.range(of: #"^\d+\.\s"#, options: .regularExpression) {
                 let prefix = String(strippedLine[numberMatch])
+                let extraSpacePrefix = prefix.replacingOccurrences(of: ". ", with: ".  ")
                 let contentText = String(strippedLine[numberMatch.upperBound...])
                 let contentAttr = parseInlineMarkdown(contentText, font: font)
-                let attrString = NSMutableAttributedString(string: prefix)
+                let attrString = NSMutableAttributedString(string: extraSpacePrefix)
                 attrString.append(contentAttr)
                 
                 attrString.addAttribute(.paragraphStyle, value: numberedParagraphStyle, range: NSRange(location: 0, length: attrString.length))
-                attrString.addAttributes([.font: font, .foregroundColor: UIColor.label], range: NSRange(location: 0, length: prefix.count))
+                attrString.addAttributes([.font: font, .foregroundColor: UIColor.label], range: NSRange(location: 0, length: extraSpacePrefix.count))
                 
                 result.append(attrString)
             } else {
@@ -657,6 +687,12 @@ struct NativeTextView: UIViewRepresentable {
                 var suffix = ""
                 
                 if let font = attrs[.font] as? UIFont {
+                    let isMonospaced = font.fontName.contains("Mono") || font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace)
+                    if isMonospaced {
+                        prefix += "`"
+                        suffix = "`" + suffix
+                    }
+                    
                     if font.isBold {
                         prefix += "**"
                         suffix = "**" + suffix
@@ -951,16 +987,17 @@ struct NativeTextView: UIViewRepresentable {
                 isUpdating = true
                 let mutableAttr = NSMutableAttributedString(attributedString: textView.attributedText)
                 
-                let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                let font = textView.font ?? UIFont.defaultSlateFont
                 let bulletParagraphStyle = NSMutableParagraphStyle()
-                bulletParagraphStyle.headIndent = 16
+                bulletParagraphStyle.headIndent = 18
                 bulletParagraphStyle.firstLineHeadIndent = 0
                 bulletParagraphStyle.paragraphSpacing = 8
+                bulletParagraphStyle.lineSpacing = 3.0
                 let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: bulletParagraphStyle]
                 
-                if currentLine.hasPrefix("• ") {
+                if currentLine.hasPrefix("•  ") {
                     let nsLine = currentLine as NSString
-                    let cleanLine = nsLine.substring(from: 2)
+                    let cleanLine = nsLine.substring(from: 3)
                     mutableAttr.replaceCharacters(in: lineRange, with: cleanLine)
                     
                     let normalAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: NSMutableParagraphStyle()]
@@ -969,21 +1006,21 @@ struct NativeTextView: UIViewRepresentable {
                     mutableAttr.addAttributes(normalAttrs, range: newLineRange)
                     
                     textView.attributedText = mutableAttr
-                    textView.selectedRange = NSRange(location: max(0, safeRange.location - 2), length: safeRange.length)
+                    textView.selectedRange = NSRange(location: max(0, safeRange.location - 3), length: safeRange.length)
                 } else {
-                    var adjustSelection = 2
+                    var adjustSelection = 3
                     
                     if currentLine.hasPrefix("- [ ] ") || currentLine.hasPrefix("- [x] ") {
-                        let checklistRange = NSRange(location: lineRange.location, length: 2)
-                        mutableAttr.replaceCharacters(in: checklistRange, with: "• ")
+                        let checklistRange = NSRange(location: lineRange.location, length: 3)
+                        mutableAttr.replaceCharacters(in: checklistRange, with: "•  ")
                         adjustSelection = 0
                     } else if let numberMatch = currentLine.range(of: #"^\d+\.\s"#, options: .regularExpression) {
                         let nsMatch = NSRange(numberMatch, in: currentLine)
                         let numberRange = NSRange(location: lineRange.location, length: nsMatch.length)
-                        mutableAttr.replaceCharacters(in: numberRange, with: "• ")
-                        adjustSelection = 2 - nsMatch.length
+                        mutableAttr.replaceCharacters(in: numberRange, with: "•  ")
+                        adjustSelection = 3 - nsMatch.length
                     } else {
-                        mutableAttr.insert(NSAttributedString(string: "• ", attributes: attrs), at: lineRange.location)
+                        mutableAttr.insert(NSAttributedString(string: "•  ", attributes: attrs), at: lineRange.location)
                     }
                     
                     let nsString = mutableAttr.string as NSString
@@ -1023,11 +1060,12 @@ struct NativeTextView: UIViewRepresentable {
                 isUpdating = true
                 let mutableAttr = NSMutableAttributedString(attributedString: textView.attributedText)
                 
-                let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                let font = textView.font ?? UIFont.defaultSlateFont
                 let numberedParagraphStyle = NSMutableParagraphStyle()
-                numberedParagraphStyle.headIndent = 20
+                numberedParagraphStyle.headIndent = 24
                 numberedParagraphStyle.firstLineHeadIndent = 0
                 numberedParagraphStyle.paragraphSpacing = 8
+                numberedParagraphStyle.lineSpacing = 3.0
                 let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: numberedParagraphStyle]
                 
                 if let numberMatch = currentLine.range(of: #"^\d+\.\s"#, options: .regularExpression) {
@@ -1055,17 +1093,17 @@ struct NativeTextView: UIViewRepresentable {
                         }
                     }
                     
-                    let prefix = "\(numberToUse). "
+                    let prefix = "\(numberToUse).  "
                     var adjustSelection = prefix.count
                     
-                    if currentLine.hasPrefix("• ") {
-                        let bulletRange = NSRange(location: lineRange.location, length: 2)
+                    if currentLine.hasPrefix("•  ") {
+                        let bulletRange = NSRange(location: lineRange.location, length: 3)
                         mutableAttr.replaceCharacters(in: bulletRange, with: prefix)
-                        adjustSelection = prefix.count - 2
+                        adjustSelection = prefix.count - 3
                     } else if currentLine.hasPrefix("- [ ] ") || currentLine.hasPrefix("- [x] ") {
-                        let checklistRange = NSRange(location: lineRange.location, length: 2)
+                        let checklistRange = NSRange(location: lineRange.location, length: 3)
                         mutableAttr.replaceCharacters(in: checklistRange, with: prefix)
-                        adjustSelection = prefix.count - 2
+                        adjustSelection = prefix.count - 3
                     } else {
                         mutableAttr.insert(NSAttributedString(string: prefix, attributes: attrs), at: lineRange.location)
                     }
@@ -1102,7 +1140,7 @@ struct NativeTextView: UIViewRepresentable {
                 let attrString = NSMutableAttributedString(attributedString: textView.attributedText)
                 
                 attrString.enumerateAttribute(.font, in: safeRange, options: []) { value, range, _ in
-                    let currentFont = (value as? UIFont) ?? textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                    let currentFont = (value as? UIFont) ?? textView.font ?? UIFont.defaultSlateFont
                     var traits = currentFont.fontDescriptor.symbolicTraits
                     
                     if traits.contains(trait) {
@@ -1277,9 +1315,10 @@ struct NativeTextView: UIViewRepresentable {
         func textViewDidChange(_ textView: UITextView) {
             if isUpdating { return }
             if textView.text.isEmpty {
-                let defaultFont = UIFont.preferredFont(forTextStyle: .body)
+                let defaultFont = UIFont.defaultSlateFont
                 
                 let defaultParagraphStyle = NSMutableParagraphStyle()
+                defaultParagraphStyle.lineSpacing = 3.0
                 defaultParagraphStyle.paragraphSpacing = 8
                 
                 textView.typingAttributes = [
@@ -1314,14 +1353,14 @@ struct NativeTextView: UIViewRepresentable {
                         : nil
                         
                     if firstCharAttr is CheckboxAttachment {
-                        let isLineEmpty = strippedLine.count <= 2 || (strippedLine.count == 3 && strippedLine.hasSuffix("\n"))
+                        let isLineEmpty = strippedLine.count <= 3 || (strippedLine.count == 4 && strippedLine.hasSuffix("\n"))
                         
                         if isLineEmpty {
                             isUpdating = true
                             let mutableAttr = NSMutableAttributedString(attributedString: textView.attributedText)
                             mutableAttr.replaceCharacters(in: lineRange, with: "")
                             
-                            let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                            let font = textView.font ?? UIFont.defaultSlateFont
                             let normalAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: NSMutableParagraphStyle()]
                             if lineRange.location < mutableAttr.length {
                                 let nsString = mutableAttr.string as NSString
@@ -1346,15 +1385,16 @@ struct NativeTextView: UIViewRepresentable {
                             let newBoxStr = NSMutableAttributedString(string: "\n" + String(repeating: "  ", count: level))
                             newBoxStr.append(NSAttributedString(attachment: attachment))
                             
-                            let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                            let font = textView.font ?? UIFont.defaultSlateFont
                             let paragraphStyle = NSMutableParagraphStyle()
                             let indentOffset = CGFloat(level * 24)
                             paragraphStyle.headIndent = indentOffset + 32
                             paragraphStyle.firstLineHeadIndent = indentOffset
                             paragraphStyle.paragraphSpacing = 8
+                            paragraphStyle.lineSpacing = 3.0
                             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: paragraphStyle]
                             
-                            newBoxStr.append(NSAttributedString(string: " ", attributes: attrs))
+                            newBoxStr.append(NSAttributedString(string: "  ", attributes: attrs))
                             newBoxStr.addAttributes(attrs, range: NSRange(location: 0, length: newBoxStr.length))
                             
                             mutableAttr.replaceCharacters(in: range, with: newBoxStr)
@@ -1371,15 +1411,15 @@ struct NativeTextView: UIViewRepresentable {
                     }
                     
                     // 2. Bullet point case
-                    if strippedLine.hasPrefix("• ") {
-                        let isLineEmpty = strippedLine.count <= 3
+                    if strippedLine.hasPrefix("•  ") {
+                        let isLineEmpty = strippedLine.count <= 4
                         
                         if isLineEmpty {
                             isUpdating = true
                             let mutableAttr = NSMutableAttributedString(attributedString: textView.attributedText)
                             mutableAttr.replaceCharacters(in: lineRange, with: "")
                             
-                            let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                            let font = textView.font ?? UIFont.defaultSlateFont
                             let normalAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: NSMutableParagraphStyle()]
                             if lineRange.location < mutableAttr.length {
                                 let nsString = mutableAttr.string as NSString
@@ -1400,15 +1440,16 @@ struct NativeTextView: UIViewRepresentable {
                             isUpdating = true
                             let mutableAttr = NSMutableAttributedString(attributedString: textView.attributedText)
                             
-                            let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                            let font = textView.font ?? UIFont.defaultSlateFont
                             let bulletParagraphStyle = NSMutableParagraphStyle()
                             let indentOffset = CGFloat(level * 24)
-                            bulletParagraphStyle.headIndent = indentOffset + 16
+                            bulletParagraphStyle.headIndent = indentOffset + 18
                             bulletParagraphStyle.firstLineHeadIndent = indentOffset
                             bulletParagraphStyle.paragraphSpacing = 8
+                            bulletParagraphStyle.lineSpacing = 3.0
                             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: bulletParagraphStyle]
                             
-                            let newBulletStr = NSMutableAttributedString(string: "\n" + String(repeating: "  ", count: level) + "• ", attributes: attrs)
+                            let newBulletStr = NSMutableAttributedString(string: "\n" + String(repeating: "  ", count: level) + "•  ", attributes: attrs)
                             
                             mutableAttr.replaceCharacters(in: range, with: newBulletStr)
                             textView.attributedText = mutableAttr
@@ -1424,7 +1465,7 @@ struct NativeTextView: UIViewRepresentable {
                     }
                     
                     // 3. Numbered list case
-                    if let numberMatch = strippedLine.range(of: #"^\d+\.\s"#, options: .regularExpression) {
+                    if let numberMatch = strippedLine.range(of: #"^\d+\.\s+"#, options: .regularExpression) ?? strippedLine.range(of: #"^\d+\.\s"#, options: .regularExpression) {
                         let prefix = String(strippedLine[numberMatch])
                         let isLineEmpty = strippedLine.count <= prefix.count + 1
                         
@@ -1433,7 +1474,7 @@ struct NativeTextView: UIViewRepresentable {
                             let mutableAttr = NSMutableAttributedString(attributedString: textView.attributedText)
                             mutableAttr.replaceCharacters(in: lineRange, with: "")
                             
-                            let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                            let font = textView.font ?? UIFont.defaultSlateFont
                             let normalAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: NSMutableParagraphStyle()]
                             if lineRange.location < mutableAttr.length {
                                 let nsString = mutableAttr.string as NSString
@@ -1451,7 +1492,7 @@ struct NativeTextView: UIViewRepresentable {
                             textView.selectedRange = NSRange(location: lineRange.location, length: 0)
                             return false
                         } else {
-                            let numStr = prefix.dropLast(2)
+                            let numStr = prefix.trimmingCharacters(in: .whitespaces).dropLast(1)
                             var nextNum = 1
                             if let currentNum = Int(numStr) {
                                 nextNum = currentNum + 1
@@ -1460,15 +1501,16 @@ struct NativeTextView: UIViewRepresentable {
                             isUpdating = true
                             let mutableAttr = NSMutableAttributedString(attributedString: textView.attributedText)
                             
-                            let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
+                            let font = textView.font ?? UIFont.defaultSlateFont
                             let numberedParagraphStyle = NSMutableParagraphStyle()
                             let indentOffset = CGFloat(level * 24)
-                            numberedParagraphStyle.headIndent = indentOffset + 20
+                            numberedParagraphStyle.headIndent = indentOffset + 24
                             numberedParagraphStyle.firstLineHeadIndent = indentOffset
                             numberedParagraphStyle.paragraphSpacing = 8
+                            numberedParagraphStyle.lineSpacing = 3.0
                             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label, .paragraphStyle: numberedParagraphStyle]
                             
-                            let newPrefixStr = NSMutableAttributedString(string: "\n" + String(repeating: "  ", count: level) + "\(nextNum). ", attributes: attrs)
+                            let newPrefixStr = NSMutableAttributedString(string: "\n" + String(repeating: "  ", count: level) + "\(nextNum).  ", attributes: attrs)
                             
                             mutableAttr.replaceCharacters(in: range, with: newPrefixStr)
                             textView.attributedText = mutableAttr

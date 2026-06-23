@@ -36,7 +36,7 @@ struct CreateTabView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
                     ForEach($blockItems) { $item in
                         if item.isSpecial {
                             SpecialBlockWrapper(onDelete: {

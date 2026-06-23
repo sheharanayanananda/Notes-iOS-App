@@ -58,7 +58,17 @@ struct NoteBlockUtility {
         
         func flushNormal() {
             guard !currentNormalBlocks.isEmpty else { return }
-            let raw = currentNormalBlocks.map { serializeNormalBlock($0) }.joined(separator: "\n\n")
+            
+            var raw = ""
+            for (idx, block) in currentNormalBlocks.enumerated() {
+                let serialized = serializeNormalBlock(block)
+                if idx == 0 {
+                    raw = serialized
+                } else {
+                    raw += "\n" + serialized
+                }
+            }
+            
             if !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 items.append(NoteBlockItem(isSpecial: false, rawText: raw, block: .paragraph(text: raw)))
             }
@@ -113,6 +123,6 @@ struct NoteBlockUtility {
     }
     
     static func combineBlockItems(_ items: [NoteBlockItem]) -> String {
-        return items.map { $0.rawText }.joined(separator: "\n\n")
+        return items.map { $0.rawText }.joined(separator: "\n")
     }
 }
