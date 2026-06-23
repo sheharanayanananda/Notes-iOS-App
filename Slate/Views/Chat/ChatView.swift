@@ -312,6 +312,8 @@ struct ChatBubbleView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var context
     
+    @State private var isAnimationCompleted: Bool = false
+    
     var body: some View {
         if message.role == "user" {
             VStack(alignment: .trailing, spacing: 8) {
@@ -395,27 +397,52 @@ struct ChatBubbleView: View {
                 if message.content.isEmpty && isGenerating {
                     ChatLoadingStatusView()
                 } else {
-                    MessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed)
-                        .textSelection(.enabled)
+                    MessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            isAnimationCompleted = true
+                        }
+                    }
+                    .textSelection(.enabled)
                     
-                    if !message.content.isEmpty && !isGenerating {
+                    if !message.content.isEmpty && !isGenerating && isAnimationCompleted {
                         HStack(spacing: 8) {
                             CopyButton(text: message.content)
                             AddToNoteButton(text: message.content, activeTab: $activeTab, editingNote: $editingNote, context: context)
                             Spacer()
                         }
                         .padding(.top, 4)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onAppear {
+                isAnimationCompleted = !isNew
+            }
+            .onChange(of: isNew) { _, newValue in
+                if newValue {
+                    isAnimationCompleted = false
+                } else {
+                    isAnimationCompleted = true
+                }
+            }
         }
+    }
+}
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 
 struct CopyButton: View {
     let text: String
     @State private var isCopied = false
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         Button(action: {
@@ -433,14 +460,26 @@ struct CopyButton: View {
                 }
             }
         }) {
-            Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                .font(.system(size: 15))
-                .foregroundColor(isCopied ? .green : .secondary)
-                .frame(width: 32, height: 32)
-                .background(Color.clear)
-                .contentShape(Rectangle())
+            HStack(spacing: 6) {
+                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 12, weight: .medium))
+                Text(isCopied ? "Copied" : "Copy")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(isCopied ? .green : .secondary)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(
+                Capsule()
+                    .fill(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+            )
+            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 
@@ -449,6 +488,7 @@ struct AddToNoteButton: View {
     @Binding var activeTab: ContentView.TabIdentifier
     @Binding var editingNote: SlateModel?
     let context: ModelContext
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         Button(action: {
@@ -464,14 +504,26 @@ struct AddToNoteButton: View {
             editingNote = draft
             activeTab = .create
         }) {
-            Image(systemName: "square.and.pencil")
-                .font(.system(size: 15))
-                .foregroundColor(.secondary)
-                .frame(width: 32, height: 32)
-                .background(Color.clear)
-                .contentShape(Rectangle())
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                Text("Slate")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(
+                Capsule()
+                    .fill(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+            )
+            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 

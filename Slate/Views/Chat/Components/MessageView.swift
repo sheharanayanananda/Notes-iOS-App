@@ -36,6 +36,7 @@ struct MessageView: View {
     let content: String
     var isNew: Bool = false
     var onBlockRevealed: (() -> Void)? = nil
+    var onAnimationComplete: (() -> Void)? = nil
     
     @State private var visibleBlocksCount: Int = 0
     @State private var hasAnimated: Bool = false
@@ -61,9 +62,14 @@ struct MessageView: View {
         .onAppear {
             if isNew && !hasAnimated {
                 visibleBlocksCount = 0
-                animateBlocks(count: blocks.count)
+                if blocks.isEmpty {
+                    onAnimationComplete?()
+                } else {
+                    animateBlocks(count: blocks.count)
+                }
             } else {
                 visibleBlocksCount = blocks.count
+                onAnimationComplete?()
             }
         }
         .onChange(of: content) {
@@ -85,6 +91,9 @@ struct MessageView: View {
                     }
                     onBlockRevealed?()
                 }
+            }
+            await MainActor.run {
+                onAnimationComplete?()
             }
         }
     }

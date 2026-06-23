@@ -288,10 +288,7 @@ extension CreateTabView {
     private func generateTitleInBackground(for note: SlateModel, content: String) async {
         do {
             let client = OllamaClient()
-            let systemPrompt = """
-            You are a helpful assistant. Provide a highly concise, suitable title (maximum 4 words) for the following note content. 
-            Respond ONLY with the title, without any quotes or punctuation around it.
-            """
+            let systemPrompt = SystemPrompts.titleGeneration
             let title = try await client.generate(
                 prompt: content,
                 system: systemPrompt
@@ -310,16 +307,7 @@ extension CreateTabView {
     }
     
     private var aiSystemPrompt: String {
-        """
-        You are an expert note organizer. Your task is to analyze the content and context of the provided note and reorganize, structure, and refine it to make it highly readable, clear, and actionable.
-
-        # Instructions
-        1. **Identify the Core Subject:** Determine the main topic of the note and create a clear heading hierarchy.
-        2. **Synthesize Details:** Group scattered thoughts into logical sub-sections (`## Section`).
-        3. **Apply Clean Markdown:** Use checklists (`- [ ]`) for tasks/todos, bullet lists (`-`) for brainstorms, and tables for data points.
-        4. **Tone & Style:** Maintain the user's intent but polish grammar, remove duplicate thoughts, and format text for rapid scanning.
-        5. **No Meta-Commentary:** Do not include introductory/outro sentences (e.g. "Here is your reorganized note:"). Output only the organized note content.
-        """
+        SystemPrompts.noteOrganizer
     }
     
     private func sanitizeMarkdown(_ response: String) -> String {
