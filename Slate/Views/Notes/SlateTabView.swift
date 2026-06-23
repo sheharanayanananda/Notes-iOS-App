@@ -31,24 +31,18 @@ struct SlateTabView: View {
     let onOpenSettings: () -> Void
     let onCreate: () -> Void
     let onSelect: (SlateModel) -> Void
-    let onSmartLens: () -> Void
-    let onScribe: () -> Void
 
     // MARK: - Initializer
     init(
         showSettings: Binding<Bool>,
         onOpenSettings: @escaping () -> Void = {},
         onCreate: @escaping () -> Void = {},
-        onSelect: @escaping (SlateModel) -> Void = { _ in },
-        onSmartLens: @escaping () -> Void = {},
-        onScribe: @escaping () -> Void = {}
+        onSelect: @escaping (SlateModel) -> Void = { _ in }
     ) {
         self._showSettings = showSettings
         self.onOpenSettings = onOpenSettings
         self.onCreate = onCreate
         self.onSelect = onSelect
-        self.onSmartLens = onSmartLens
-        self.onScribe = onScribe
     }
 
     // MARK: - UI Code
@@ -128,17 +122,7 @@ struct SlateTabView: View {
         }
         .navigationTitle("Slate")
         .toolbarTitleDisplayMode(.automatic)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 16) {
-                    Button("Scribe", systemImage: "waveform") {
-                        onScribe()
-                    }
-//                    Button("Smart Lens", systemImage: "text.viewfinder") {
-//                        onSmartLens()
-//                    }
-                }
-            }
+
             ToolbarItem(placement: .navigation) {
                 Button(action: {
                     onOpenSettings()

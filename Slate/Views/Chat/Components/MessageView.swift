@@ -165,9 +165,16 @@ struct ImageBlockView: View {
     let urlString: String
     @Environment(\.colorScheme) private var colorScheme
     
+    private var correctedURL: URL? {
+        let corrected = urlString
+            .replacingOccurrences(of: "placekitten.com", with: "placecats.com")
+            .replacingOccurrences(of: "via.placeholder.com", with: "placehold.co")
+        return URL(string: corrected)
+    }
+    
     var body: some View {
         VStack(alignment: .center, spacing: 6) {
-            if let url = URL(string: urlString) {
+            if let url = correctedURL {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .empty:

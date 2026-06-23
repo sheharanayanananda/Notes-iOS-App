@@ -28,11 +28,14 @@ struct ChatView: View {
     // State-driven — drives the UI instantly without SwiftUI animation transactions
     @State private var displayedPreset: ChatPreset = .slateFlash
 
-    @State private var messages: [OllamaChatMessage] = []
-    @State private var isGenerating = false
-    @State private var errorMessage: String? = nil
+    @ObservedObject private var chatManager = ChatManager.shared
+    
+    private var messages: [OllamaChatMessage] { chatManager.messages }
+    private var isGenerating: Bool { chatManager.isGenerating }
+    private var errorMessage: String? { chatManager.errorMessage }
+    private var newlyGeneratedMessageId: String? { chatManager.newlyGeneratedMessageId }
+    
     @FocusState private var isInputFocused: Bool
-    @State private var newlyGeneratedMessageId: String? = nil
     @State private var isTextFieldDisabled = false
     @State private var scrollTask: Task<Void, Never>? = nil
     @State private var hasAppeared = false
@@ -187,9 +190,7 @@ struct ChatView: View {
                 Button(action: {
                     let generator = UIImpactFeedbackGenerator(style: .medium)
                     generator.impactOccurred()
-                    messages = []
-                    saveMessages([])
-                    errorMessage = nil
+                    chatManager.clearChat()
                     chatText = ""
                 }) {
                     Image(systemName: "square.and.pencil")
@@ -198,8 +199,14 @@ struct ChatView: View {
                 }
             }
         }
+        .onChange(of: chatManager.isGenerating) { _, newValue in
+            if !newValue {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                    isTextFieldDisabled = false
+                }
+            }
+        }
         .onAppear {
-            messages = loadMessages()
             // Load persisted preset into @State on first appear
             displayedPreset = storedPreset
             applyPreset(storedPreset)
@@ -229,22 +236,14 @@ extension ChatView {
         
         isInputFocused = false
         
-        var base64Images: [String]? = nil
-        if !selectedImages.isEmpty {
-            base64Images = selectedImages.compactMap { img in
-                img.jpegData(compressionQuality: 0.7)?.base64EncodedString()
-            }
-        }
-        
-        let documentsToSend = selectedDocuments
+        let imagesCopy = selectedImages
+        let documentsCopy = selectedDocuments
         
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             chatText = ""
             selectedImages = []
             selectedDocuments = []
-            errorMessage = nil
-            newlyGeneratedMessageId = nil
-            isGenerating = true
+            chatManager.newlyGeneratedMessageId = nil
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
@@ -253,81 +252,18 @@ extension ChatView {
             }
         }
         
-        let userMessage = OllamaChatMessage(role: "user", content: trimmed, images: base64Images, documents: documentsToSend)
-        messages.append(userMessage)
-        
-        let assistantPlaceholder = OllamaChatMessage(role: "assistant", content: "")
-        messages.append(assistantPlaceholder)
-        saveMessages(messages)
-        
         let sendGenerator = UIImpactFeedbackGenerator(style: .light)
         sendGenerator.impactOccurred()
         
-        Task {
-            do {
-                let client = OllamaClient(modelName: "gemma4:31b")
-                
-                var messagesToSend = [OllamaChatMessage]()
-                messagesToSend.append(OllamaChatMessage(role: "system", content: displayedPreset.systemPrompt))
-                
-                for msg in messages.dropLast() {
-                    if let docs = msg.documents, !docs.isEmpty {
-                        var injectedContent = ""
-                        for doc in docs {
-                            injectedContent += "[Attached Document: \(doc.name)]\n"
-                            injectedContent += doc.contentText
-                            injectedContent += "\n--------------------------------------\n\n"
-                        }
-                        injectedContent += msg.content
-                        messagesToSend.append(OllamaChatMessage(role: msg.role, content: injectedContent, images: msg.images))
-                    } else {
-                        messagesToSend.append(msg)
-                    }
-                }
-                
-                let finalMessage = try await client.chat(
-                    messages: messagesToSend,
-                    reasoningLevel: thinkingLevel,
-                    creativity: creativity,
-                    memorySize: memorySize.rawValue
-                )
-                
-                await MainActor.run {
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                        if let lastIndex = messages.indices.last {
-                            messages[lastIndex] = finalMessage
-                            newlyGeneratedMessageId = finalMessage.id
-                        }
-                        isGenerating = false
-                        isTextFieldDisabled = false
-                    }
-                    saveMessages(messages)
-                    
-                    let replyGenerator = UIImpactFeedbackGenerator(style: .medium)
-                    replyGenerator.impactOccurred()
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                        if newlyGeneratedMessageId == finalMessage.id {
-                            newlyGeneratedMessageId = nil
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    if messages.last?.role == "assistant" && messages.last?.content.isEmpty == true {
-                        messages.removeLast()
-                    }
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                        errorMessage = error.localizedDescription
-                        isGenerating = false
-                        isTextFieldDisabled = false
-                    }
-                    
-                    let errorGenerator = UINotificationFeedbackGenerator()
-                    errorGenerator.notificationOccurred(.error)
-                }
-            }
-        }
+        chatManager.sendMessage(
+            chatText: trimmed,
+            selectedImages: imagesCopy,
+            selectedDocuments: documentsCopy,
+            displayedPreset: displayedPreset,
+            thinkingLevel: thinkingLevel,
+            creativity: creativity,
+            memorySize: memorySize
+        )
     }
 }
 
@@ -337,33 +273,6 @@ extension ChatView {
         creativity = preset.creativity
         memorySize = preset.memorySize
         thinkingLevel = preset.thinkingLevel
-    }
-    
-    private func getFileURL() -> URL? {
-        try? FileManager.default
-            .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("active_chat.json")
-    }
-    
-    private func saveMessages(_ msgs: [OllamaChatMessage]) {
-        guard let url = getFileURL() else { return }
-        do {
-            let data = try JSONEncoder().encode(msgs)
-            try data.write(to: url)
-        } catch {
-            print("Failed to save chat: \(error)")
-        }
-    }
-    
-    private func loadMessages() -> [OllamaChatMessage] {
-        guard let url = getFileURL(), FileManager.default.fileExists(atPath: url.path) else { return [] }
-        do {
-            let data = try Data(contentsOf: url)
-            return try JSONDecoder().decode([OllamaChatMessage].self, from: data)
-        } catch {
-            print("Failed to load chat: \(error)")
-            return []
-        }
     }
     
     private func scrollToBottom(proxy: ScrollViewProxy, delay: Double = 0.0, animate: Bool = true) {
@@ -489,7 +398,7 @@ struct ChatBubbleView: View {
                     MessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed)
                         .textSelection(.enabled)
                     
-                    if !message.content.isEmpty {
+                    if !message.content.isEmpty && !isGenerating {
                         HStack(spacing: 8) {
                             CopyButton(text: message.content)
                             AddToNoteButton(text: message.content, activeTab: $activeTab, editingNote: $editingNote, context: context)
