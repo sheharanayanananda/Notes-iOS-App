@@ -343,10 +343,13 @@ struct NativeTextView: UIViewRepresentable {
             let selectedRange = uiView.selectedRange
             slateTextView?.isLayoutUpdating = true
             context.coordinator.isUpdating = true
+            
+            // IMPORTANT: set font BEFORE attributedText.
+            // Setting UITextView.font AFTER attributedText resets the entire text storage
+            // to a single font, destroying any per-character styling (e.g. header sizes).
+            uiView.font = font
             uiView.attributedText = attr
             context.coordinator.isUpdating = false
-            
-            uiView.font = font
             
             let defaultParagraphStyle = NSMutableParagraphStyle()
             defaultParagraphStyle.paragraphSpacing = 8
@@ -514,7 +517,58 @@ struct NativeTextView: UIViewRepresentable {
             normalParagraphStyle.firstLineHeadIndent = indentOffset
             normalParagraphStyle.paragraphSpacing = 8
             
-            if strippedLine.hasPrefix("- [ ] ") {
+            // --- Headers (h1 / h2 / h3) ---
+            if strippedLine.hasPrefix("### ") {
+                let headerFont = UIFont.preferredFont(forTextStyle: .title3).bold()
+                let text = String(strippedLine.dropFirst(4))
+                let attrString = parseInlineMarkdown(text, font: headerFont)
+                let mutableAttr = NSMutableAttributedString(attributedString: attrString)
+                let headerStyle = NSMutableParagraphStyle()
+                headerStyle.headIndent = indentOffset
+                headerStyle.firstLineHeadIndent = indentOffset
+                headerStyle.paragraphSpacing = 4
+                headerStyle.paragraphSpacingBefore = 8
+                mutableAttr.addAttribute(.paragraphStyle, value: headerStyle, range: NSRange(location: 0, length: mutableAttr.length))
+                result.append(mutableAttr)
+            } else if strippedLine.hasPrefix("## ") {
+                let headerFont = UIFont.preferredFont(forTextStyle: .title2).bold()
+                let text = String(strippedLine.dropFirst(3))
+                let attrString = parseInlineMarkdown(text, font: headerFont)
+                let mutableAttr = NSMutableAttributedString(attributedString: attrString)
+                let headerStyle = NSMutableParagraphStyle()
+                headerStyle.headIndent = indentOffset
+                headerStyle.firstLineHeadIndent = indentOffset
+                headerStyle.paragraphSpacing = 4
+                headerStyle.paragraphSpacingBefore = 10
+                mutableAttr.addAttribute(.paragraphStyle, value: headerStyle, range: NSRange(location: 0, length: mutableAttr.length))
+                result.append(mutableAttr)
+            } else if strippedLine.hasPrefix("# ") {
+                let headerFont = UIFont.preferredFont(forTextStyle: .title1).bold()
+                let text = String(strippedLine.dropFirst(2))
+                let attrString = parseInlineMarkdown(text, font: headerFont)
+                let mutableAttr = NSMutableAttributedString(attributedString: attrString)
+                let headerStyle = NSMutableParagraphStyle()
+                headerStyle.headIndent = indentOffset
+                headerStyle.firstLineHeadIndent = indentOffset
+                headerStyle.paragraphSpacing = 6
+                headerStyle.paragraphSpacingBefore = 12
+                mutableAttr.addAttribute(.paragraphStyle, value: headerStyle, range: NSRange(location: 0, length: mutableAttr.length))
+                result.append(mutableAttr)
+            // --- Blockquotes ---
+            } else if strippedLine.hasPrefix("> ") {
+                let text = String(strippedLine.dropFirst(2))
+                let quoteFont = UIFont.preferredFont(forTextStyle: .body).italic()
+                let attrString = parseInlineMarkdown(text, font: quoteFont)
+                let mutableAttr = NSMutableAttributedString(attributedString: attrString)
+                let quoteStyle = NSMutableParagraphStyle()
+                quoteStyle.headIndent = indentOffset + 16
+                quoteStyle.firstLineHeadIndent = indentOffset + 16
+                quoteStyle.paragraphSpacing = 8
+                mutableAttr.addAttribute(.paragraphStyle, value: quoteStyle, range: NSRange(location: 0, length: mutableAttr.length))
+                mutableAttr.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: NSRange(location: 0, length: mutableAttr.length))
+                result.append(mutableAttr)
+            // --- Checklists, lists, normal text ---
+            } else if strippedLine.hasPrefix("- [ ] ") {
                 let attachment = CheckboxAttachment(isChecked: false)
                 let attrString = NSMutableAttributedString(attachment: attachment)
                 let contentText = String(strippedLine.dropFirst(6))

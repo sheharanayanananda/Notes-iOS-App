@@ -543,14 +543,16 @@ struct AddToNoteButton: View {
     
     var body: some View {
         Button(action: {
-            let initialTitle = generateInitialTitle(from: text)
-            let newNote = SlateModel(title: initialTitle, desc: text)
-            context.insert(newNote)
+            // Create an in-memory note (NOT inserted into the DB).
+            // Content arrives in CreateTabView exactly as-is — all formatting preserved.
+            // The user edits it and hits Save, which is when the DB insert and
+            // AI title generation both happen.
+            let draft = SlateModel(title: "", desc: text)
             
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
             
-            editingNote = newNote
+            editingNote = draft
             activeTab = .create
         }) {
             Image(systemName: "square.and.pencil")
@@ -561,12 +563,6 @@ struct AddToNoteButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-    
-    private func generateInitialTitle(from text: String) -> String {
-        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-        let firstThree = words.prefix(3).joined(separator: " ")
-        return firstThree.isEmpty ? "New Note" : String(firstThree)
     }
 }
 

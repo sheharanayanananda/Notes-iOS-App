@@ -15,33 +15,27 @@ struct SpecialBlockWrapper<Content: View>: View {
     }
     
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            content
-                .padding(.top, 12)
-                .padding(.leading, 12)
-            
-            Button(action: {
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.impactOccurred()
-                onDelete()
-            }) {
-                Image(systemName: "trash")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.red)
-                    .padding(8)
-                    .background(Color(.systemBackground))
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.12), radius: 3, x: 0, y: 1)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.red.opacity(0.15), lineWidth: 0.5)
-                    )
+        content
+            .overlay(alignment: .topLeading) {
+                Button(action: {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    onDelete()
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.red)
+                        .padding(8)
+                        .background(Color(.systemBackground))
+                        .clipShape(Circle())
+                        .shadow(color: Color.black.opacity(0.12), radius: 3, x: 0, y: 1)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.red.opacity(0.15), lineWidth: 0.5)
+                        )
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.leading, 4)
-            .padding(.top, 4)
-            .buttonStyle(.plain)
-            .zIndex(10)
-        }
-        .padding(.vertical, 4)
+            .padding(.vertical, 4)
     }
 }

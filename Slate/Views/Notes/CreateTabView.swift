@@ -161,14 +161,17 @@ extension CreateTabView {
         }
         
         let targetNote: SlateModel
+        // Placeholder title — AI will overwrite this immediately in background.
         let initialTitle = generateInitialTitle(from: trimmedDesc)
         
         if let note = editingNote {
             note.desc = trimmedDesc
+            // Only set a placeholder title if the note doesn't have one yet.
             if note.title.isEmpty {
                 note.title = initialTitle
             }
             targetNote = note
+            // Draft notes from chat are not in the DB yet — insert them now.
             if targetNote.modelContext == nil {
                 context.insert(targetNote)
             }
@@ -177,6 +180,8 @@ extension CreateTabView {
             context.insert(targetNote)
         }
         
+        // AI generates the real title in background; wasTitlePreGenerated is only
+        // true for notes whose titles were set by the "Organize with AI" flow.
         if !wasTitlePreGenerated {
             Task {
                 await generateTitleInBackground(for: targetNote, content: trimmedDesc)
@@ -270,7 +275,9 @@ extension CreateTabView {
     }
     
     private func generateInitialTitle(from text: String) -> String {
-        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+        // Skip any leading # characters so they don't leak into the title
+        let cleaned = text.trimmingCharacters(in: CharacterSet(charactersIn: "# ").union(.whitespacesAndNewlines))
+        let words = cleaned.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
         let firstThree = words.prefix(3).joined(separator: " ")
         return firstThree.isEmpty ? "New Note" : firstThree
     }
