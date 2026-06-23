@@ -12,21 +12,52 @@ struct OllamaGenerateResponse: Decodable {
     let response: String
 }
 
+struct OllamaDocumentAttachment: Codable, Equatable, Hashable, Identifiable {
+    var id = UUID()
+    let name: String
+    let contentText: String
+    
+    enum CodingKeys: String, CodingKey {
+        case name, contentText
+    }
+    
+    init(id: UUID = UUID(), name: String, contentText: String) {
+        self.id = id
+        self.name = name
+        self.contentText = contentText
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.name = try container.decode(String.self, forKey: .name)
+        self.contentText = try container.decode(String.self, forKey: .contentText)
+        self.id = UUID()
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(contentText, forKey: .contentText)
+    }
+}
+
 struct OllamaChatMessage: Codable, Equatable, Identifiable {
     var id: String = UUID().uuidString
     let role: String      // "user", "assistant", "system"
     let content: String
     var images: [String]? // Base64 encoded JPEG representations
+    var documents: [OllamaDocumentAttachment]?
     
     enum CodingKeys: String, CodingKey {
-        case role, content, images
+        case role, content, images, documents
     }
     
-    init(id: String = UUID().uuidString, role: String, content: String, images: [String]? = nil) {
+    init(id: String = UUID().uuidString, role: String, content: String, images: [String]? = nil, documents: [OllamaDocumentAttachment]? = nil) {
         self.id = id
         self.role = role
         self.content = content
         self.images = images
+        self.documents = documents
     }
     
     init(from decoder: Decoder) throws {
@@ -34,6 +65,7 @@ struct OllamaChatMessage: Codable, Equatable, Identifiable {
         self.role = try container.decode(String.self, forKey: .role)
         self.content = try container.decode(String.self, forKey: .content)
         self.images = try container.decodeIfPresent([String].self, forKey: .images)
+        self.documents = try container.decodeIfPresent([OllamaDocumentAttachment].self, forKey: .documents)
         self.id = UUID().uuidString
     }
     
@@ -42,6 +74,7 @@ struct OllamaChatMessage: Codable, Equatable, Identifiable {
         try container.encode(role, forKey: .role)
         try container.encode(content, forKey: .content)
         try container.encodeIfPresent(images, forKey: .images)
+        try container.encodeIfPresent(documents, forKey: .documents)
     }
 }
 

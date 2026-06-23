@@ -7,22 +7,25 @@
 
 import SwiftUI
 import PhotosUI
+import UniformTypeIdentifiers
 
 struct ChatCapsule: View {
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var showPhotoPicker = false
     @State private var showCamera = false
+    @State private var showDocumentPicker = false
     
     @Environment(\.colorScheme) private var colorScheme
     @Binding var text: String
     @Binding var selectedImages: [UIImage]
+    @Binding var selectedDocuments: [OllamaDocumentAttachment]
     var isGenerating: Bool
     var isTextFieldDisabled: Bool
     var isInputFocused: FocusState<Bool>.Binding
     var onSend: () -> Void
     
     private var isMultiline: Bool {
-        text.contains("\n") || text.count > 38 || !selectedImages.isEmpty
+        text.contains("\n") || text.count > 36 || !selectedImages.isEmpty || !selectedDocuments.isEmpty
     }
     
     private var currentCornerRadius: CGFloat {
@@ -44,7 +47,7 @@ struct ChatCapsule: View {
             }
             
             Button(action: {
-                // Documents Action
+                showDocumentPicker = true
             }) {
                 Label("Documents", systemImage: "doc.text")
             }
@@ -89,10 +92,11 @@ struct ChatCapsule: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: isMultiline ? 12 : 0) {
-            // 1. Image Previews Area
-            if !selectedImages.isEmpty {
+            // 1. Attachment Previews Area (Images & Documents)
+            if !selectedImages.isEmpty || !selectedDocuments.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
+                        // Render Images
                         ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, uiImage in
                             ZStack(alignment: .topTrailing) {
                                 Image(uiImage: uiImage)
@@ -110,6 +114,48 @@ struct ChatCapsule: View {
                                         selectedImages.remove(at: index)
                                         if selectedItems.indices.contains(index) {
                                             selectedItems.remove(at: index)
+                                        }
+                                    }
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(Color.primary, Color(uiColor: .systemBackground))
+                                        .font(.system(size: 22))
+                                }
+                                .offset(x: 6, y: -6)
+                            }
+                            .padding(.top, 6)
+                            .padding(.trailing, 6)
+                        }
+                        
+                        // Render Documents
+                        ForEach(selectedDocuments) { doc in
+                            ZStack(alignment: .topTrailing) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Image(systemName: "doc.text.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text(doc.name)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.primary)
+                                        .lineLimit(1)
+                                }
+                                .padding(10)
+                                .frame(width: 110, height: 72, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(.ultraThinMaterial)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                        )
+                                )
+                                
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        if let idx = selectedDocuments.firstIndex(of: doc) {
+                                            selectedDocuments.remove(at: idx)
                                         }
                                     }
                                 }) {
@@ -205,6 +251,103 @@ struct ChatCapsule: View {
                         self.selectedImages = Array(loadedImages.prefix(10))
                     }
                 }
+            }
+        }
+        .fileImporter(
+            isPresented: $showDocumentPicker,
+            allowedContentTypes: [.pdf, .rtf, .text, .json, .commaSeparatedText],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                for url in urls {
+                    guard url.startAccessingSecurityScopedResource() else { continue }
+                    
+                    let coordinator = NSFileCoordinator()
+                    var error: NSError?
+                    
+                    coordinator.coordinate(readingItemAt: url, options: [], error: &error) { coordinatedURL in
+                        let name = coordinatedURL.lastPathComponent
+                        let ext = coordinatedURL.pathExtension.lowercased()
+                        
+                        guard let fileData = try? Data(contentsOf: coordinatedURL) else {
+                            print("Failed to read file data synchronously")
+                            return
+                        }
+                        
+                        Task {
+                            if ext == "pdf" {
+                                var needsVisual = false
+                                if let textContent = DocumentParser.extractTextFromPDF(data: fileData, onNeedsVisualRendering: { needsVisual = true }) {
+                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
+                                    await MainActor.run {
+                                        withAnimation {
+                                            selectedDocuments.append(attachment)
+                                        }
+                                    }
+                                } else if needsVisual {
+                                    let rendered = DocumentParser.renderPDFPagesToImages(data: fileData)
+                                    await MainActor.run {
+                                        withAnimation {
+                                            for img in rendered {
+                                                if selectedImages.count < 10 {
+                                                    selectedImages.append(img)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if ext == "docx" {
+                                if let textContent = DocumentParser.extractTextFromDocx(data: fileData) {
+                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
+                                    await MainActor.run {
+                                        withAnimation {
+                                            selectedDocuments.append(attachment)
+                                        }
+                                    }
+                                }
+                            } else if ext == "xlsx" {
+                                if let textContent = DocumentParser.extractTextFromXlsx(data: fileData) {
+                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
+                                    await MainActor.run {
+                                        withAnimation {
+                                            selectedDocuments.append(attachment)
+                                        }
+                                    }
+                                }
+                            } else if ext == "rtf" {
+                                if let textContent = DocumentParser.extractTextFromRTF(data: fileData) {
+                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
+                                    await MainActor.run {
+                                        withAnimation {
+                                            selectedDocuments.append(attachment)
+                                        }
+                                    }
+                                }
+                            } else {
+                                if let textContent = String(data: fileData, encoding: .utf8) {
+                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
+                                    await MainActor.run {
+                                        withAnimation {
+                                            selectedDocuments.append(attachment)
+                                        }
+                                    }
+                                } else if let textContent = String(data: fileData, encoding: .ascii) {
+                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
+                                    await MainActor.run {
+                                        withAnimation {
+                                            selectedDocuments.append(attachment)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    url.stopAccessingSecurityScopedResource()
+                }
+            case .failure(let error):
+                print("Failed to import documents: \(error.localizedDescription)")
             }
         }
     }

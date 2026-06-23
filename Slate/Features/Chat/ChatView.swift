@@ -14,6 +14,7 @@ struct ChatView: View {
     
     @State private var chatText = ""
     @State private var selectedImages: [UIImage] = []
+    @State private var selectedDocuments: [OllamaDocumentAttachment] = []
     
     @State private var thinkingLevel: String = "Off"
     @State private var creativity: Double = 0.3
@@ -66,6 +67,7 @@ struct ChatView: View {
                         ChatCapsule(
                             text: $chatText,
                             selectedImages: $selectedImages,
+                            selectedDocuments: $selectedDocuments,
                             isGenerating: isGenerating,
                             isTextFieldDisabled: isTextFieldDisabled,
                             isInputFocused: $isInputFocused,
@@ -107,6 +109,7 @@ struct ChatView: View {
                         ChatCapsule(
                             text: $chatText,
                             selectedImages: $selectedImages,
+                            selectedDocuments: $selectedDocuments,
                             isGenerating: isGenerating,
                             isTextFieldDisabled: isTextFieldDisabled,
                             isInputFocused: $isInputFocused,
@@ -267,7 +270,7 @@ struct ChatView: View {
     
     private func sendMessage() {
         let trimmed = chatText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty || !selectedImages.isEmpty else { return }
+        guard !trimmed.isEmpty || !selectedImages.isEmpty || !selectedDocuments.isEmpty else { return }
         
         // Resign focus first to trigger smooth keyboard dismissal transition
         isInputFocused = false
@@ -280,10 +283,13 @@ struct ChatView: View {
             }
         }
         
+        let documentsToSend = selectedDocuments
+        
         // Clear input and update states with animation
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             chatText = ""
             selectedImages = []
+            selectedDocuments = []
             errorMessage = nil
             newlyGeneratedMessageId = nil
             isGenerating = true
@@ -296,7 +302,7 @@ struct ChatView: View {
             }
         }
         
-        let userMessage = OllamaChatMessage(role: "user", content: trimmed, images: base64Images)
+        let userMessage = OllamaChatMessage(role: "user", content: trimmed, images: base64Images, documents: documentsToSend)
         messages.append(userMessage)
         
         // Append an empty assistant message as a placeholder for streaming
@@ -311,9 +317,23 @@ struct ChatView: View {
             do {
                 let client = OllamaClient(modelName: "gemma4:31b")
                 
-                var messagesToSend = Array(messages.dropLast())
-                let systemMsg = OllamaChatMessage(role: "system", content: displayedPreset.systemPrompt)
-                messagesToSend.insert(systemMsg, at: 0)
+                var messagesToSend = [OllamaChatMessage]()
+                messagesToSend.append(OllamaChatMessage(role: "system", content: displayedPreset.systemPrompt))
+                
+                for msg in messages.dropLast() {
+                    if let docs = msg.documents, !docs.isEmpty {
+                        var injectedContent = ""
+                        for doc in docs {
+                            injectedContent += "[Attached Document: \(doc.name)]\n"
+                            injectedContent += doc.contentText
+                            injectedContent += "\n--------------------------------------\n\n"
+                        }
+                        injectedContent += msg.content
+                        messagesToSend.append(OllamaChatMessage(role: msg.role, content: injectedContent, images: msg.images))
+                    } else {
+                        messagesToSend.append(msg)
+                    }
+                }
                 
                 let finalMessage = try await client.chat(
                     messages: messagesToSend,
@@ -381,6 +401,7 @@ struct ChatBubbleView: View {
     var body: some View {
         if message.role == "user" {
             VStack(alignment: .trailing, spacing: 8) {
+                // Render Images
                 if let images = message.images, !images.isEmpty {
                     let cardSize: CGFloat = 100
                     let spacing: CGFloat = 8
@@ -407,13 +428,51 @@ struct ChatBubbleView: View {
                     .frame(width: min(contentWidth, maxW))
                 }
                 
+                // Render Documents
+                if let documents = message.documents, !documents.isEmpty {
+                    let cardW: CGFloat = 120
+                    let cardH: CGFloat = 85
+                    let spacing: CGFloat = 8
+                    let maxW: CGFloat = 300
+                    let contentWidth = CGFloat(documents.count) * cardW + CGFloat(documents.count - 1) * spacing
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: spacing) {
+                            ForEach(documents) { doc in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Image(systemName: "doc.text.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text(doc.name)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.primary)
+                                        .lineLimit(1)
+                                }
+                                .padding(10)
+                                .frame(width: cardW, height: cardH, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        .fill(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                        )
+                                )
+                            }
+                        }
+                    }
+                    .frame(width: min(contentWidth, maxW))
+                }
+                
                 if !message.content.isEmpty {
                     MessageView(content: message.content, isNew: false)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
-                        .clipShape(RoundedRectangle(cornerRadius: 35, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
                         .textSelection(.enabled)
+                        .lineHeight(.loose)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
