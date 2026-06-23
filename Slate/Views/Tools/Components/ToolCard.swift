@@ -6,12 +6,14 @@
 import SwiftUI
 
 struct ToolCard: View {
+    // MARK: - Properties
     var title: String
     var subtitle: String
     var iconName: String
     var iconColor: Color
     var action: () -> Void
     
+    // MARK: - UI Code
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
@@ -59,7 +61,7 @@ struct ToolCard: View {
     }
 }
 
-// Custom button style for tactile spring feedback
+// MARK: - Helpers
 struct ToolCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -69,6 +71,7 @@ struct ToolCardButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Previews
 #Preview {
     ContentView()
 }

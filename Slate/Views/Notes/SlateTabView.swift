@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 
 struct SlateTabView: View {
+    // MARK: - Properties
     @Environment(\.modelContext) private var context
     @Query(sort: \SlateModel.created_at, order: .reverse) private var notes: [SlateModel]
     @AppStorage("is_demo_mode") private var isDemoMode = false
@@ -33,6 +34,7 @@ struct SlateTabView: View {
     let onSmartLens: () -> Void
     let onScribe: () -> Void
 
+    // MARK: - Initializer
     init(
         showSettings: Binding<Bool>,
         onOpenSettings: @escaping () -> Void = {},
@@ -49,7 +51,7 @@ struct SlateTabView: View {
         self.onScribe = onScribe
     }
 
-    //----------------- Start of UI Code -----------------//
+    // MARK: - UI Code
     var body: some View {
         ZStack {
             List {
@@ -150,8 +152,8 @@ struct SlateTabView: View {
                 .presentationDetents([.medium, .large])
         }
     }
-    //----------------- End of UI Code -----------------//
     
+    // MARK: - Supporting Functions
     static func makeDemoNotes() -> [SlateModel] {
         let note1 = SlateModel(title: "Welcome to Slate", desc: "Welcome to Slate! This is an intelligent, offline-first notes application.\n\n- [x] Create a new note\n- [ ] Try the AI Note Organizer\n- [ ] Explore the Smart Lens scanner\n- [ ] Customize settings\n\nDouble tap or tap directly on these checkboxes to toggle them!")
         note1.created_at = Date()
@@ -172,6 +174,7 @@ struct SlateTabView: View {
     }
 }
 
+// MARK: - Previews
 #Preview {
   ContentView()
 }

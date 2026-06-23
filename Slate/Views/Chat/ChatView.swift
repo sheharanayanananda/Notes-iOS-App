@@ -203,68 +203,18 @@ struct ChatView: View {
             }
         }
     }
-    
+}
+
+// MARK: - Main Functions
+extension ChatView {
     /// Selects a preset instantly in UI state, persists without animation
     private func selectPreset(_ preset: ChatPreset) {
-        // Update @State immediately — this is NOT wrapped in any animation transaction
         displayedPreset = preset
         applyPreset(preset)
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
-        // Write to @AppStorage on next runloop tick to avoid triggering
-        // SwiftUI's animated view-update pass during this layout cycle
         DispatchQueue.main.async {
             storedPreset = preset
-        }
-    }
-    
-    private func applyPreset(_ preset: ChatPreset) {
-        creativity = preset.creativity
-        memorySize = preset.memorySize
-        thinkingLevel = preset.thinkingLevel
-    }
-    
-    private func getFileURL() -> URL? {
-        try? FileManager.default
-            .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("active_chat.json")
-    }
-    
-    private func saveMessages(_ msgs: [OllamaChatMessage]) {
-        guard let url = getFileURL() else { return }
-        do {
-            let data = try JSONEncoder().encode(msgs)
-            try data.write(to: url)
-        } catch {
-            print("Failed to save chat: \(error)")
-        }
-    }
-    
-    private func loadMessages() -> [OllamaChatMessage] {
-        guard let url = getFileURL(), FileManager.default.fileExists(atPath: url.path) else { return [] }
-        do {
-            let data = try Data(contentsOf: url)
-            return try JSONDecoder().decode([OllamaChatMessage].self, from: data)
-        } catch {
-            print("Failed to load chat: \(error)")
-            return []
-        }
-    }
-    
-    private func scrollToBottom(proxy: ScrollViewProxy, delay: Double = 0.0, animate: Bool = true) {
-        scrollTask?.cancel()
-        scrollTask = Task {
-            if delay > 0 {
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            }
-            guard !Task.isCancelled else { return }
-            if animate {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                    proxy.scrollTo("bottomSpacer", anchor: .bottom)
-                }
-            } else {
-                proxy.scrollTo("bottomSpacer", anchor: .bottom)
-            }
         }
     }
     
@@ -272,10 +222,8 @@ struct ChatView: View {
         let trimmed = chatText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !selectedImages.isEmpty || !selectedDocuments.isEmpty else { return }
         
-        // Resign focus first to trigger smooth keyboard dismissal transition
         isInputFocused = false
         
-        // Process images before clearing state
         var base64Images: [String]? = nil
         if !selectedImages.isEmpty {
             base64Images = selectedImages.compactMap { img in
@@ -285,7 +233,6 @@ struct ChatView: View {
         
         let documentsToSend = selectedDocuments
         
-        // Clear input and update states with animation
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             chatText = ""
             selectedImages = []
@@ -295,7 +242,6 @@ struct ChatView: View {
             isGenerating = true
         }
         
-        // Delay disabling the text field to allow keyboard dismissal animation to run fully
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                 isTextFieldDisabled = true
@@ -305,7 +251,6 @@ struct ChatView: View {
         let userMessage = OllamaChatMessage(role: "user", content: trimmed, images: base64Images, documents: documentsToSend)
         messages.append(userMessage)
         
-        // Append an empty assistant message as a placeholder for streaming
         let assistantPlaceholder = OllamaChatMessage(role: "assistant", content: "")
         messages.append(assistantPlaceholder)
         saveMessages(messages)
@@ -356,7 +301,6 @@ struct ChatView: View {
                     let replyGenerator = UIImpactFeedbackGenerator(style: .medium)
                     replyGenerator.impactOccurred()
                     
-                    // Clear the newlyGeneratedMessageId after 3 seconds to prevent re-animation on scroll
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                         if newlyGeneratedMessageId == finalMessage.id {
                             newlyGeneratedMessageId = nil
@@ -377,6 +321,59 @@ struct ChatView: View {
                     let errorGenerator = UINotificationFeedbackGenerator()
                     errorGenerator.notificationOccurred(.error)
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Supporting Functions
+extension ChatView {
+    private func applyPreset(_ preset: ChatPreset) {
+        creativity = preset.creativity
+        memorySize = preset.memorySize
+        thinkingLevel = preset.thinkingLevel
+    }
+    
+    private func getFileURL() -> URL? {
+        try? FileManager.default
+            .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("active_chat.json")
+    }
+    
+    private func saveMessages(_ msgs: [OllamaChatMessage]) {
+        guard let url = getFileURL() else { return }
+        do {
+            let data = try JSONEncoder().encode(msgs)
+            try data.write(to: url)
+        } catch {
+            print("Failed to save chat: \(error)")
+        }
+    }
+    
+    private func loadMessages() -> [OllamaChatMessage] {
+        guard let url = getFileURL(), FileManager.default.fileExists(atPath: url.path) else { return [] }
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([OllamaChatMessage].self, from: data)
+        } catch {
+            print("Failed to load chat: \(error)")
+            return []
+        }
+    }
+    
+    private func scrollToBottom(proxy: ScrollViewProxy, delay: Double = 0.0, animate: Bool = true) {
+        scrollTask?.cancel()
+        scrollTask = Task {
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
+            if animate {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                    proxy.scrollTo("bottomSpacer", anchor: .bottom)
+                }
+            } else {
+                proxy.scrollTo("bottomSpacer", anchor: .bottom)
             }
         }
     }

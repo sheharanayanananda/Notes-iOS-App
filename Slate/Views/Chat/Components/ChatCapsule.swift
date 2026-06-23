@@ -10,6 +10,7 @@ import PhotosUI
 import UniformTypeIdentifiers
 
 struct ChatCapsule: View {
+    // MARK: - Properties
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var showPhotoPicker = false
     @State private var showCamera = false
@@ -32,6 +33,7 @@ struct ChatCapsule: View {
         isMultiline ? 33 : 35
     }
     
+    // MARK: - UI Components
     private var plusButton: some View {
         Menu {
             Button(action: {
@@ -90,6 +92,7 @@ struct ChatCapsule: View {
         .animation(.easeInOut(duration: 0.3), value: isGenerating)
     }
     
+    // MARK: - UI Code
     var body: some View {
         VStack(alignment: .leading, spacing: isMultiline ? 12 : 0) {
             // 1. Attachment Previews Area (Images & Documents)

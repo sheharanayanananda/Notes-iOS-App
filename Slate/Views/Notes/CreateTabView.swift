@@ -7,6 +7,7 @@ import SwiftUI
 import SwiftData
 
 struct CreateTabView: View {
+    // MARK: - Properties
     @State private var text: String = ""
     
     @Binding var editingNote: SlateModel?
@@ -25,13 +26,12 @@ struct CreateTabView: View {
     @State private var isAnimatingText: Bool = false
     @State private var skeletonSessionID = UUID()
     
-
-    
     private var typedLinesCount: Int {
         if text.isEmpty { return 0 }
         return text.components(separatedBy: "\n").count
     }
 
+    // MARK: - UI Code
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
@@ -112,9 +112,11 @@ struct CreateTabView: View {
         } message: {
             Text(errorMessage ?? "An unknown error occurred.")
         }
-
     }
-    
+}
+
+// MARK: - Main Functions
+extension CreateTabView {
     private func saveNote() {
         let trimmedDesc = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDesc.isEmpty {
@@ -127,9 +129,6 @@ struct CreateTabView: View {
         
         if let note = editingNote {
             note.desc = trimmedDesc
-            // Only update title if it's currently empty, or if we want to overwrite it. 
-            // We'll update the title. Wait, if it already had a title, maybe we shouldn't overwrite it.
-            // But let's just generate a new one if it's essentially default. For now, let's always regenerate or only if empty.
             if note.title.isEmpty {
                 note.title = initialTitle
             }
@@ -142,10 +141,6 @@ struct CreateTabView: View {
             context.insert(targetNote)
         }
         
-        // Capture id to fetch safely in background if needed, but SwiftData objects aren't thread safe.
-        // Actually, updating the object on the main thread is safer. 
-        // The background generation will yield a string, and we'll update targetNote on MainActor.
-        
         if !wasTitlePreGenerated {
             Task {
                 await generateTitleInBackground(for: targetNote, content: trimmedDesc)
@@ -154,6 +149,75 @@ struct CreateTabView: View {
         
         reset()
         activeTab = .notes
+    }
+    
+    private func organizeNoteWithAI() {
+        let trimmedDesc = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedDesc.isEmpty {
+            errorMessage = "Can't organize an empty note."
+            showErrorAlert = true
+            return
+        }
+        
+        animationTask?.cancel()
+        skeletonSessionID = UUID()
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isOrganizing = true
+            isAnimatingText = false
+            text = "" // Clear text immediately to display the skeleton loader
+        }
+        
+        Task {
+            do {
+                let client = OllamaClient()
+                let organizedText = try await client.generate(
+                    prompt: trimmedDesc,
+                    system: aiSystemPrompt
+                )
+                let cleanedText = sanitizeMarkdown(organizedText)
+                if !cleanedText.isEmpty {
+                    await MainActor.run {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            isOrganizing = false
+                        }
+                        animateTextLineByLine(cleanedText)
+                    }
+                } else {
+                    await MainActor.run {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            text = trimmedDesc
+                            isOrganizing = false
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        text = trimmedDesc
+                        isOrganizing = false
+                    }
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+    
+    private func cancel() {
+        reset()
+        activeTab = .notes
+    }
+}
+
+// MARK: - Supporting Functions
+extension CreateTabView {
+    private func reset() {
+        text = ""
+        editingNote = nil
+        isLensProcessing = false
+        isAnimatingText = false
+        lensResultText = ""
+        animationTask?.cancel()
     }
     
     private func generateInitialTitle(from text: String) -> String {
@@ -221,80 +285,11 @@ struct CreateTabView: View {
         """
     }
     
-    private func organizeNoteWithAI() {
-        let trimmedDesc = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedDesc.isEmpty {
-            errorMessage = "Can't organize an empty note."
-            showErrorAlert = true
-            return
-        }
-        
-        animationTask?.cancel()
-        skeletonSessionID = UUID()
-        withAnimation(.easeInOut(duration: 0.3)) {
-            isOrganizing = true
-            isAnimatingText = false
-            text = "" // Clear text immediately to display the skeleton loader
-        }
-        
-        Task {
-            do {
-                let client = OllamaClient()
-                let organizedText = try await client.generate(
-                    prompt: trimmedDesc,
-                    system: aiSystemPrompt
-                )
-                let cleanedText = sanitizeMarkdown(organizedText)
-                if !cleanedText.isEmpty {
-                    await MainActor.run {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isOrganizing = false
-                        }
-                        animateTextLineByLine(cleanedText)
-                    }
-                } else {
-                    await MainActor.run {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            text = trimmedDesc
-                            isOrganizing = false
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        text = trimmedDesc
-                        isOrganizing = false
-                    }
-                    errorMessage = error.localizedDescription
-                    showErrorAlert = true
-                }
-            }
-        }
-    }
-    
-    private func cancel() {
-        reset()
-        activeTab = .notes
-    }
-    
-    private func reset() {
-        text = ""
-        editingNote = nil
-        isLensProcessing = false
-        isAnimatingText = false
-        lensResultText = ""
-        animationTask?.cancel()
-    }
-    
-
-    
     private func sanitizeMarkdown(_ response: String) -> String {
         var textToParse = response
             .replacingOccurrences(of: "\r", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // Strip markdown code block wrapping if present
         if let blockRange = textToParse.range(of: "```markdown") {
             let afterBlock = textToParse[blockRange.upperBound...]
             if let endBlockRange = afterBlock.range(of: "```") {
@@ -334,11 +329,10 @@ struct CreateTabView: View {
                     }
                 }
                 
-                // Play a very subtle tactile feedback on each line to feel responsive
                 let generator = UISelectionFeedbackGenerator()
                 generator.selectionChanged()
                 
-                try? await Task.sleep(nanoseconds: 220_000_000) // 220ms per line
+                try? await Task.sleep(nanoseconds: 220_000_000)
             }
             
             withAnimation(.easeInOut(duration: 0.3)) {

@@ -32,6 +32,7 @@ struct IdentifiableBlock: Identifiable {
 }
 
 struct MessageView: View {
+    // MARK: - Properties
     let content: String
     var isNew: Bool = false
     var onBlockRevealed: (() -> Void)? = nil
@@ -39,6 +40,7 @@ struct MessageView: View {
     @State private var visibleBlocksCount: Int = 0
     @State private var hasAnimated: Bool = false
     
+    // MARK: - UI Code
     var body: some View {
         let blocks = MarkdownParser.parse(content)
         let wrappedBlocks = blocks.enumerated().map { index, block in
@@ -71,6 +73,7 @@ struct MessageView: View {
         }
     }
     
+    // MARK: - Supporting Functions
     private func animateBlocks(count: Int) {
         hasAnimated = true
         Task {

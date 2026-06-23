@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct ToolsTabView: View {
+    // MARK: - Properties
     @Binding var editingNote: SlateModel?
     @Binding var activeTab: ContentView.TabIdentifier
     let onSmartLens: () -> Void
@@ -89,6 +90,7 @@ struct ToolsTabView: View {
         return list
     }
     
+    // MARK: - UI Code
     var body: some View {
         ScrollView {
             let columns = [
@@ -131,6 +133,7 @@ struct ToolsTabView: View {
     }
 }
 
+// MARK: - Previews
 #Preview {
     ContentView()
 }

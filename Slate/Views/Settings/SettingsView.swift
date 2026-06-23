@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    // MARK: - Properties
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     
@@ -17,7 +18,7 @@ struct SettingsView: View {
     @State private var showKey: Bool = false
     @AppStorage("is_demo_mode") private var isDemoMode = false
 
-    //----------------- Start of UI Code -----------------//
+    // MARK: - UI Code
     var body: some View {
         Form {
             Section(
@@ -60,8 +61,6 @@ struct SettingsView: View {
                         .padding(.vertical, 2)
                     }
                 }
-                
-
             }
             
             Section(
@@ -87,10 +86,11 @@ struct SettingsView: View {
         .onChange(of: viewModel.apiKey) {
             viewModel.handleApiKeyChange()
         }
-
     }
-    //----------------- End of UI Code -----------------//
+}
 
+// MARK: - Main Functions
+extension SettingsView {
     private func dismissView() {
         viewModel.savePendingChanges()
         if let onDismiss = onDismiss {
@@ -101,6 +101,7 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Previews
 #Preview {
     NavigationStack {
         SettingsView(viewModel: SettingsViewModel())

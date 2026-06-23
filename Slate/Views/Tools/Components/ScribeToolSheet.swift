@@ -7,6 +7,7 @@ import SwiftUI
 import SwiftData
 
 struct ScribeToolSheet: View {
+    // MARK: - Properties
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     
@@ -34,6 +35,7 @@ struct ScribeToolSheet: View {
     private let mockTitle = "Launch Plan Checklist"
     private let mockDesc = "Launch Plan\n\n**Action Items**\n- [ ] Complete launch plan tasks\n- [ ] Review design notes"
     
+    // MARK: - UI Code
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
@@ -98,54 +100,6 @@ struct ScribeToolSheet: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-            }
-            
-            Divider()
-                .padding(.horizontal, 40)
-            
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 16) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .foregroundColor(.red)
-                        .frame(width: 24)
-                    VStack(alignment: .leading) {
-                        Text("Vocal Dictation")
-                            .font(.subheadline)
-                            .bold()
-                        Text("Speak naturally to dictate tasks, checklists, or summaries.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                HStack(spacing: 16) {
-                    Image(systemName: "waveform.and.mic")
-                        .foregroundColor(.red)
-                        .frame(width: 24)
-                    VStack(alignment: .leading) {
-                        Text("On-Device Speech Recognition")
-                            .font(.subheadline)
-                            .bold()
-                        Text("Audio processed securely on-device with Speech framework.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                HStack(spacing: 16) {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(.red)
-                        .frame(width: 24)
-                    VStack(alignment: .leading) {
-                        Text("Intelligence Structuring")
-                            .font(.subheadline)
-                            .bold()
-                        Text("Gemma model extracts tasks, timelines, and builds slates.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
             }
             .padding(.horizontal, 24)
         }
@@ -153,44 +107,35 @@ struct ScribeToolSheet: View {
     
     private var recordingView: some View {
         VStack(spacing: 32) {
-            Text(timeString(from: recordingSeconds))
-                .font(.system(size: 48, weight: .bold, design: .monospaced))
-                .foregroundColor(.red)
-            
             HStack(spacing: 4) {
                 ForEach(0..<15) { index in
-                    Capsule()
+                    RoundedRectangle(cornerRadius: 3)
                         .fill(Color.red)
                         .frame(width: 6, height: waveformHeights[index])
-                        .animation(.easeInOut(duration: 0.15), value: waveformHeights[index])
+                        .animation(.easeInOut(duration: 0.1), value: waveformHeights[index])
                 }
             }
             .frame(height: 80)
             
             VStack(spacing: 12) {
-                Text("Listening...")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
+                Text(timeString(from: recordingSeconds))
+                    .font(.system(size: 32, weight: .semibold, design: .monospaced))
                 
-                Text("\"\(dictationText)\"")
+                Text(dictationText)
                     .font(.body)
-                    .italic()
+                    .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
                     .frame(height: 60)
             }
             
             Button(action: stopRecordingSimulation) {
-                HStack(spacing: 8) {
-                    Image(systemName: "stop.fill")
-                    Text("Stop & Process")
-                }
-                .font(.headline)
-                .foregroundColor(.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(Color.red)
-                .cornerRadius(24)
+                Image(systemName: "stop.fill")
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .frame(width: 64, height: 64)
+                    .background(Color.red)
+                    .clipShape(Circle())
             }
         }
     }
@@ -255,7 +200,10 @@ struct ScribeToolSheet: View {
             }
         }
     }
-    
+}
+
+// MARK: - Main Functions
+extension ScribeToolSheet {
     private func startRecordingSimulation() {
         currentState = .recording
         recordingSeconds = 0
@@ -295,13 +243,6 @@ struct ScribeToolSheet: View {
         }
     }
     
-    private func stopAllSimulations() {
-        timer?.invalidate()
-        timer = nil
-        waveformTimer?.invalidate()
-        waveformTimer = nil
-    }
-    
     private func saveMockNote() {
         let note = SlateModel(title: mockTitle, desc: mockDesc)
         context.insert(note)
@@ -311,6 +252,16 @@ struct ScribeToolSheet: View {
         
         dismiss()
     }
+}
+
+// MARK: - Supporting Functions
+extension ScribeToolSheet {
+    private func stopAllSimulations() {
+        timer?.invalidate()
+        timer = nil
+        waveformTimer?.invalidate()
+        waveformTimer = nil
+    }
     
     private func timeString(from seconds: Int) -> String {
         let minutes = seconds / 60
@@ -319,6 +270,7 @@ struct ScribeToolSheet: View {
     }
 }
 
+// MARK: - Previews
 #Preview {
     ScribeToolSheet()
 }
