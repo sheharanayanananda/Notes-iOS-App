@@ -16,6 +16,49 @@ struct ChatCapsule: View {
     @State private var showCamera = false
     @State private var showDocumentPicker = false
     
+    // MARK: - Drag State
+    @State private var dragOffset: CGSize = .zero
+    @State private var lastHapticDistance: CGFloat = 0
+    
+    private func triggerStartHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred()
+    }
+    
+    private func triggerStretchHaptic() {
+        let generator = UISelectionFeedbackGenerator()
+        generator.prepare()
+        generator.selectionChanged()
+    }
+    
+    private func triggerReleaseHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .rigid)
+        generator.prepare()
+        generator.impactOccurred()
+    }
+    
+    private var rubberBandedOffset: CGSize {
+        CGSize(
+            width: dragOffset.width * 0.5,
+            height: dragOffset.height * 0.5
+        )
+    }
+    
+    private var dragScaleX: CGFloat {
+        let stretch = abs(dragOffset.width) * 0.0012
+        let squish = abs(dragOffset.height) * 0.0008
+        let scale = 1.0 + stretch - squish
+        return min(max(scale, 0.85), 1.25)
+    }
+    
+    private var dragScaleY: CGFloat {
+        let stretch = abs(dragOffset.height) * 0.0012
+        let squish = abs(dragOffset.width) * 0.0008
+        let scale = 1.0 + stretch - squish
+        return min(max(scale, 0.85), 1.25)
+    }
+    
     @Environment(\.colorScheme) private var colorScheme
     @Binding var text: String
     @Binding var selectedImages: [UIImage]
@@ -26,7 +69,7 @@ struct ChatCapsule: View {
     var onSend: () -> Void
     
     private var isMultiline: Bool {
-        text.contains("\n") || text.count > 36 || !selectedImages.isEmpty || !selectedDocuments.isEmpty
+        text.contains("\n") || text.count > 33 || !selectedImages.isEmpty || !selectedDocuments.isEmpty
     }
     
     private var currentCornerRadius: CGFloat {
@@ -213,14 +256,50 @@ struct ChatCapsule: View {
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 16)
-        .background(
-            RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
-                .fill(.clear)
-                .glassEffect(.regular.interactive(true), in: .rect(cornerRadius: currentCornerRadius))
-                .onTapGesture {
-                    isInputFocused.wrappedValue = true
+        .scaleEffect(x: dragScaleX, y: dragScaleY)
+        .contentShape(RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous))
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 5)
+                .onChanged { value in
+                    let translation = value.translation
+                    let distance = sqrt(translation.width * translation.width + translation.height * translation.height)
+                    
+                    if dragOffset == .zero {
+                        triggerStartHaptic()
+                        lastHapticDistance = 0
+                    }
+                    
+                    if abs(distance - lastHapticDistance) >= 25 {
+                        triggerStretchHaptic()
+                        lastHapticDistance = distance
+                    }
+                    
+                    dragOffset = translation
+                }
+                .onEnded { _ in
+                    triggerReleaseHaptic()
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) {
+                        dragOffset = .zero
+                    }
+                    lastHapticDistance = 0
                 }
         )
+        .background(
+            GeometryReader { geo in
+                RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
+                    .fill(.clear)
+                    .glassEffect(.regular.interactive(true), in: .rect(cornerRadius: currentCornerRadius))
+                    .frame(
+                        width: geo.size.width * dragScaleX,
+                        height: geo.size.height * dragScaleY
+                    )
+                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
+            }
+            .onTapGesture {
+                isInputFocused.wrappedValue = true
+            }
+        )
+        .offset(rubberBandedOffset)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isMultiline)
         .padding(.horizontal, 21)
         .padding(.bottom, 4)

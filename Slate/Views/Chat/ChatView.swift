@@ -460,24 +460,19 @@ struct CopyButton: View {
                 }
             }
         }) {
-            HStack(spacing: 6) {
-                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 12, weight: .medium))
-                Text(isCopied ? "Copied" : "Copy")
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundColor(isCopied ? .green : .secondary)
-            .padding(.horizontal, 12)
-            .frame(height: 28)
-            .background(
-                Capsule()
-                    .fill(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                    )
-            )
-            .contentShape(Capsule())
+            Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(isCopied ? .green : .secondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
+                        .overlay(
+                            Circle()
+                                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                        )
+                )
+                .contentShape(Circle())
         }
         .buttonStyle(ScaleButtonStyle())
     }
