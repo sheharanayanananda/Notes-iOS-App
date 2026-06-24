@@ -441,7 +441,16 @@ struct MarkdownParser {
                 
                 if checkboxState != nil {
                     // Strip the checkbox prefix [ ] or [x] from contentText
-                    contentText = String(contentText.trimmingCharacters(in: .whitespaces).dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    var stripped = String(contentText.trimmingCharacters(in: .whitespaces).dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    // Strip redundant bullets/dashes if present (e.g. "- [ ] - text" or "- [ ] * text")
+                    if stripped.hasPrefix("- ") || stripped.hasPrefix("* ") {
+                        stripped = String(stripped.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    } else if stripped.hasPrefix("-") || stripped.hasPrefix("*") {
+                        stripped = String(stripped.dropFirst(1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    
+                    contentText = stripped
                 }
                 
                 currentListItems.append(MarkdownListItem(

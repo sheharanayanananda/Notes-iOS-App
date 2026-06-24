@@ -121,18 +121,18 @@ struct CreateTabView: View {
                 .disabled(isOrganizing)
             }
                         
-            ToolbarItem(placement: .primaryAction) {
-                if isOrganizing {
-                    ProgressView()
-                } else {
-                    Button {
-                        organizeNoteWithAI()
-                    } label: {
-                        Label("Organize with AI", systemImage: "sparkles")
-                    }
-                    .disabled(isAnimatingText || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
+//            ToolbarItem(placement: .primaryAction) {
+//                if isOrganizing {
+//                    ProgressView()
+//                } else {
+//                    Button {
+//                        organizeNoteWithAI()
+//                    } label: {
+//                        Label("Organize with AI", systemImage: "sparkles")
+//                    }
+//                    .disabled(isAnimatingText || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+//                }
+//            }
             
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save", systemImage: "checkmark", role: .confirm) {

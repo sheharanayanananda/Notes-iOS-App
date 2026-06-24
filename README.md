@@ -1,76 +1,54 @@
 # Slate V2: The Agentic Notes App
 
-Slate V2 is the next-generation, commercial iteration of the Slate note-taking platform for iOS. Built with Swift and SwiftUI, V2 moves beyond static text editing to deliver a fully autonomous, context-aware AI agent ecosystem designed to manage, synthesize, and automate user's personal knowledge.
+Slate V2 is the next-generation, commercial iteration of the Slate note-taking platform for iOS. Built with Swift and SwiftUI, V2 moves beyond static text editing to deliver a fully autonomous, context-aware AI agent ecosystem designed to manage, synthesize, and automate a user's personal knowledge base.
 
 The V2 codebase resides in this private repository (`sheharanayanananda/Slate-V2`), while the open-source V1 version remains publicly available on `main` at `sheharanayanananda/Slate`.
 
 ---
 
 ## The Agentic Vision
-At the core of Slate V2 is the transition from a passive note-taking tool to an active **AI Agent**. The application is structured around a centralized workspace where the agent understands context, integrates with external platforms, and executes background automations.
+At the core of Slate V2 is the transition from a passive note-taking tool to an active **AI Agent**. The application is structured around a centralized workspace where the agent understands context, processes documents, and assists the user through advanced LLM reasoning.
 
-### 1. The Chat Command Center (Agentic Hub)
-The chat interface is the primary control deck of Slate V2. Rather than just answering queries, the chat acts as th centeral hub where all agentic features sit. Through conversational prompts, the user can ask the agent to index knowledge, interact with connected services, query system status, and launch tasks.
+### 1. The Centralized Chat Command Center
+The chat interface (`ChatView`) is the primary control deck of Slate V2. Through conversational prompts, the user can interact with the agent, process attachments, and get contextual summaries. Powered by `ChatManager`, generation processes run asynchronously and continue even if the app enters the background, alerting users via notifications when done.
 
-### 2. Cross-Platform Connectivity
-Slate V2 integrates directly with external platforms to expand the agent's context window:
-- **Gmail & Slack Integration**: The agent connects securely to your communication channels, pulling email threads, channel discussions, and context.
-- **Context Harvesting**: The agent reads and processes incoming platform messages, allowing you to ask questions like: *"Summarize the feedback on the proposal from the Slack thread this morning."*
-
-### 3. Autonomous Note Management
-The agent acts as an automated gardener for your knowledge base:
-- **Contextual Note Creation**: The agent can autonomously create, update, link, and organize notes based on conversations, instructions, or information retrieved from connected platforms.
-- **Semantic Organization**: It categorizes notes, detects duplicates, suggests tags, and creates outlines without manual input.
-
-### 4. Background Action Execution
-V2 agents work even when the app is in the pocket:
-- **Asynchronous Processing**: Performs actions in the background, such as scanning newly received emails for action items, compiling daily summaries, and auditing note consistency.
-- **Proactive Reminders**: Drafts follow-ups or alerts based on note content and context analyzed from platform integrations.
-
----
-
-## Key Core Features
-
-### Multi-Model presets
+### 2. Multi-Model Presets
 - **Preset Behaviors**: Switch system instructions, temperatures, and context sizes instantly:
   - **Balanced Assistant**: Standard note-taking and reasoning.
-  - **Deep Reasoning**: Max context (32K) for analyzing complex Slack threads or multi-page documents.
-  - **Creative Drafts**: High creativity (16K context) for brain-storming.
+  - **Deep Reasoning**: Max context for analyzing complex threads or multi-page documents.
+  - **Creative Drafts**: High creativity for brain-storming.
   - **Quick Fixes**: Snappy, low-overhead responses.
-- **Loading Wave Animation**: Cascading vertical wave bounce typing indicator.
-- **Sequential Fade-In**: Answers load paragraph-by-paragraph with a premium fade-in and slide-up transition, resembling the Gemini app.
+- **Visual indicators**: Cascading vertical wave bounce typing indicator (Loading Wave) and sequential fade-in paragraph transitions.
 
-### High-Fidelity Markdown & LaTeX Formatting
-- **Advanced Math Rendering**: Support for inline and block equations, integrations, matrices, and custom quantum/algebraic symbols (`\langle`, `\Psi`, etc.).
-- **Optimized Layout Rendering**:
-  - Thread-safe dictionary caching for structural blocks and compiled inline markdown text.
-  - Statically compiled regular expressions for linkification (emails, URLs) and strikethroughs, preventing main-thread scroll lag.
-  - Web view height and HTML caching to prevent redundant MathJax CDN re-loading, achieving a smooth 60 FPS scrolling experience.
+### 3. Rich Document & Media Attachments
+Users can attach multiple file types directly to the Chat Command Center using the floating capsule:
+- **Images & Photos**: Attached from the library or captured live via a custom `CameraPicker`.
+- **Documents**: Local parsing of PDF, Word (DOCX), RTF, and plain text files from ZIP archives, automatically parsed by a high-efficiency `DocumentParser`.
 
-### Liquid Physics Interactions
-- **Liquid Glass Input Capsule**: A floating text-entry bar featuring dynamic horizontal/vertical stretching animations and spring physics on drag offsets.
-- **Full-Capsule Focus**: Tapping anywhere on the capsule body (excluding specific utility buttons) immediately focuses the text input field.
+### 4. Interactive Physics-Based Input Capsule
+- **Liquid Glass Chat Capsule**: A floating input bar featuring dynamic horizontal/vertical stretching animations and rubber-band spring physics on drag offsets.
+- **Drag & Gesture Interactions**: Full support for responsive drag gestures, interactive haptic feedback patterns (soft on drag start, continuous selection haptics on stretching, rigid feedback on release), and full-body capsule focus.
 
-### Smart Lens (Camera Scanning)
-- VisionKit document scanning with automatic perspective correction.
-- Scene descriptions generated by the agent if no text is found in the scan.
+### 5. High-Fidelity Markdown & LaTeX Formatting
+- **Advanced Math Rendering**: Support for inline and block equations, integrations, matrices, and custom algebraic/quantum symbols using cached web layouts and MathJax.
+- **Optimized Layout Rendering**: Thread-safe dictionary caching for structural blocks and statically compiled regex styling for smooth 60 FPS scrolling.
 
 ---
 
-## Codebase Restructure
+## Codebase Structure
 
-Slate V2 uses a feature-modular architecture to cleanly isolate agent utilities and UI features:
+Slate V2 uses a unified, modular architecture to separate App UI, persistence models, services, and utilities:
 
 ```text
-├── Core/
-│   ├── API/             # Ollama client, network handlers, and integration wrappers
-│   └── Models/          # SwiftData models, presets, and context types
-└── Features/
-    ├── Chat/            # AI Chat view, BlockRenderer, and sequential animators
-    ├── Create/          # Note editor, writing canvas, and keyboard tools
-    ├── Settings/        # Settings panel, model picker, and keychain storage
-    ├── Slate/           # Main tab coordinator and app shell
-    └── Tools/           # Workspace mockup cards for background integrations
+├── Slate/
+│   ├── App/             # App lifecycle (SlateApp.swift, ContentView.swift)
+│   ├── Models/          # SwiftData models (SlateModel.swift, SystemPrompts.swift)
+│   ├── Services/        # Ollama client and Keychain storage wrappers
+│   ├── Utilities/       # DocumentParser, ChatManager, RTF and sharing helpers
+│   └── Views/           # SwiftUI View hierarchy
+│       ├── Chat/        # Chat workspace, ChatCapsule, CameraPicker, and Markdown/LaTeX formatting
+│       ├── Notes/       # Note editor, native text view canvas, blocks, and note lists
+│       └── Settings/    # API configuration panel and settings view model
 ```
 
 ---
@@ -79,8 +57,8 @@ Slate V2 uses a feature-modular architecture to cleanly isolate agent utilities 
 
 - Xcode 15.0 or later
 - iOS 17.0 or later
-- Camera permissions (for document scanning)
-- API Connection (for Ollama model APIs)
+- Camera & Photo Library permissions (for media attachments)
+- Ollama API connection (locally hosted or remote)
 
 ---
 
@@ -106,3 +84,4 @@ Slate V2 uses a feature-modular architecture to cleanly isolate agent utilities 
 ## License
 
 This project is proprietary and commercial. All rights reserved. Unauthorized copying, distribution, or commercial reuse of Slate V2, via any medium, is strictly prohibited. The code is private and confidential. Copyright © 2026 Thineth Shehara.
+

@@ -621,7 +621,12 @@ struct NativeTextView: UIViewRepresentable {
             } else if strippedLine.hasPrefix("- [ ] ") {
                 let attachment = CheckboxAttachment(isChecked: false)
                 let attrString = NSMutableAttributedString(attachment: attachment)
-                let contentText = String(strippedLine.dropFirst(6))
+                var contentText = String(strippedLine.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if contentText.hasPrefix("- ") || contentText.hasPrefix("* ") {
+                    contentText = String(contentText.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if contentText.hasPrefix("-") || contentText.hasPrefix("*") {
+                    contentText = String(contentText.dropFirst(1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
                 let contentAttr = parseInlineMarkdown("  " + contentText, font: font)
                 attrString.append(contentAttr)
                 
@@ -632,7 +637,12 @@ struct NativeTextView: UIViewRepresentable {
             } else if strippedLine.hasPrefix("- [x] ") {
                 let attachment = CheckboxAttachment(isChecked: true)
                 let attrString = NSMutableAttributedString(attachment: attachment)
-                let contentText = String(strippedLine.dropFirst(6))
+                var contentText = String(strippedLine.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if contentText.hasPrefix("- ") || contentText.hasPrefix("* ") {
+                    contentText = String(contentText.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if contentText.hasPrefix("-") || contentText.hasPrefix("*") {
+                    contentText = String(contentText.dropFirst(1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
                 let contentAttr = parseInlineMarkdown("  " + contentText, font: font)
                 
                 let mutableContent = NSMutableAttributedString(attributedString: contentAttr)
