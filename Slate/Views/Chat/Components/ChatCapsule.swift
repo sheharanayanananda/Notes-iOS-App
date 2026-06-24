@@ -69,7 +69,7 @@ struct ChatCapsule: View {
     var onSend: () -> Void
     
     private var isMultiline: Bool {
-        text.contains("\n") || text.count > 33 || !selectedImages.isEmpty || !selectedDocuments.isEmpty
+        text.contains("\n") || text.count > 36 || !selectedImages.isEmpty || !selectedDocuments.isEmpty
     }
     
     private var currentCornerRadius: CGFloat {
@@ -257,33 +257,6 @@ struct ChatCapsule: View {
         .padding(.vertical, 14)
         .padding(.horizontal, 16)
         .scaleEffect(x: dragScaleX, y: dragScaleY)
-        .contentShape(RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous))
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 5)
-                .onChanged { value in
-                    let translation = value.translation
-                    let distance = sqrt(translation.width * translation.width + translation.height * translation.height)
-                    
-                    if dragOffset == .zero {
-                        triggerStartHaptic()
-                        lastHapticDistance = 0
-                    }
-                    
-                    if abs(distance - lastHapticDistance) >= 25 {
-                        triggerStretchHaptic()
-                        lastHapticDistance = distance
-                    }
-                    
-                    dragOffset = translation
-                }
-                .onEnded { _ in
-                    triggerReleaseHaptic()
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) {
-                        dragOffset = .zero
-                    }
-                    lastHapticDistance = 0
-                }
-        )
         .background(
             GeometryReader { geo in
                 RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
@@ -294,6 +267,33 @@ struct ChatCapsule: View {
                         height: geo.size.height * dragScaleY
                     )
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                    .contentShape(RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous))
+                    .gesture(
+                        DragGesture(minimumDistance: 3)
+                            .onChanged { value in
+                                let translation = value.translation
+                                let distance = sqrt(translation.width * translation.width + translation.height * translation.height)
+                                
+                                if dragOffset == .zero {
+                                    triggerStartHaptic()
+                                    lastHapticDistance = 0
+                                }
+                                
+                                if abs(distance - lastHapticDistance) >= 25 {
+                                    triggerStretchHaptic()
+                                    lastHapticDistance = distance
+                                }
+                                
+                                dragOffset = translation
+                            }
+                            .onEnded { _ in
+                                triggerReleaseHaptic()
+                                withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) {
+                                    dragOffset = .zero
+                                }
+                                lastHapticDistance = 0
+                            }
+                    )
             }
             .onTapGesture {
                 isInputFocused.wrappedValue = true
