@@ -186,7 +186,7 @@ struct ChatView: View {
                 }
             }
             
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button(action: {
                     let generator = UIImpactFeedbackGenerator(style: .medium)
                     generator.impactOccurred()
@@ -194,19 +194,20 @@ struct ChatView: View {
                     chatText = ""
                 }) {
                     Image(systemName: "square.and.pencil")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 15))
                         .foregroundColor(.primary)
                 }
             }
-            ToolbarItem(placement: .navigationBarTrailing) {
+            
+            ToolbarItem(placement: .topBarTrailing) {
                 Button(action: {
                     let generator = UIImpactFeedbackGenerator(style: .medium)
                     generator.impactOccurred()
                     chatManager.clearChat()
                     chatText = ""
                 }) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 15, weight: .medium))
+                    Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                        .font(.system(size: 15))
                         .foregroundColor(.primary)
                 }
             }

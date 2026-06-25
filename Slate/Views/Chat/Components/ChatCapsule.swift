@@ -125,7 +125,7 @@ struct ChatCapsule: View {
             onSend()
         }) {
             Image(systemName: "arrow.up")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(colorScheme == .dark ? .black : .white)
                 .frame(width: 36, height: 36)
                 .background(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)

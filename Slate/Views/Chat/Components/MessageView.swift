@@ -101,6 +101,7 @@ struct MessageView: View {
 
 struct BlockRenderer: View {
     let block: MarkdownBlock
+    var allowsInteraction: Bool = true
     
     var body: some View {
         switch block {
@@ -119,7 +120,7 @@ struct BlockRenderer: View {
         case .thematicBreak:
             ThematicBreakView()
         case .latex(let isDisplay, let equation):
-            LaTeXMathView(equation: equation, isDisplay: isDisplay)
+            LaTeXMathView(equation: equation, isDisplay: isDisplay, allowsInteraction: allowsInteraction)
         case .alert(let type, let blocks):
             AlertBlockView(type: type, blocks: blocks)
         case .image(let caption, let urlString):
@@ -538,10 +539,12 @@ struct ParagraphBlockView: View {
 struct LaTeXMathView: View {
     let equation: String
     let isDisplay: Bool
+    var allowsInteraction: Bool = true
     @State private var webViewHeight: CGFloat = 35
     
     var body: some View {
         LaTeXWebViewRepresentable(equation: equation, isDisplay: isDisplay, height: $webViewHeight)
+            .allowsHitTesting(allowsInteraction)
             .frame(height: webViewHeight)
             .padding(.vertical, isDisplay ? 4 : 0)
     }

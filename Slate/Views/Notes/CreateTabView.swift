@@ -49,7 +49,7 @@ struct CreateTabView: View {
                                     handleDeleteSpecialBlock(id: item.id)
                                 }
                             ) {
-                                BlockRenderer(block: item.block)
+                                BlockRenderer(block: item.block, allowsInteraction: false)
                             }
                         } else {
                             NativeTextView(
