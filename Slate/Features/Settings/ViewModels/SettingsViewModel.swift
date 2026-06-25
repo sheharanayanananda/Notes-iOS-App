@@ -59,7 +59,7 @@ final class SettingsViewModel {
         loadSettings()
     }
     
-    func loadSettings() {
+    private func loadSettings() {
 
         
         // Read key from Keychain asynchronously to avoid blocking UI during VM init

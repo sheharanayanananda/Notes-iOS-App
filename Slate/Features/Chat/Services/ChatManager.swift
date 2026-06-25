@@ -12,7 +12,7 @@ import UIKit
 import Combine
 
 @MainActor
-class ChatManager: ObservableObject {
+final class ChatManager: ObservableObject {
     static let shared = ChatManager()
     
     @Published var messages: [OllamaChatMessage] = []
@@ -24,13 +24,13 @@ class ChatManager: ObservableObject {
         self.messages = loadMessages()
     }
     
-    func getFileURL() -> URL? {
+    private func getFileURL() -> URL? {
         try? FileManager.default
             .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent("active_chat.json")
     }
     
-    func loadMessages() -> [OllamaChatMessage] {
+    private func loadMessages() -> [OllamaChatMessage] {
         guard let url = getFileURL() else { return [] }
         do {
             let data = try Data(contentsOf: url)
@@ -40,7 +40,7 @@ class ChatManager: ObservableObject {
         }
     }
     
-    func saveMessages(_ msgs: [OllamaChatMessage]) {
+    private func saveMessages(_ msgs: [OllamaChatMessage]) {
         guard let url = getFileURL() else { return }
         do {
             let data = try JSONEncoder().encode(msgs)
