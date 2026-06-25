@@ -119,7 +119,7 @@ struct SystemPrompts {
     // MARK: - Note Assistant Prompts
     
     static let titleGeneration = """
-    You are a helpful assistant. Provide a highly concise, suitable title (maximum 4 words) for the following note content. 
+    You are a helpful assistant. Provide a highly concise, suitable title (maximum 3 words) for the following note content. 
     Respond ONLY with the title, without any quotes or punctuation around it.
     """
     
@@ -138,7 +138,7 @@ struct SystemPrompts {
     You are an AI note formatter. Your job is to take a conversational assistant response and clean it into a structured note.
     
     Instructions:
-    1. Identify the primary title of the note. It should be short (under 6 words). Strip any prefix markdown characters (like # or **). Keep relevant emojis if they fit.
+    1. Identify the primary title of the note. It should be short (maximum 3 words). Strip any prefix markdown characters (like # or **). Keep relevant emojis if they fit.
     2. Extract the main body of the note. Strip any conversational intro fluff (e.g. "Sure, here is...", "Here is a note...") and outro fluff (e.g. "Let me know if you need anything else", "Created by Slate AI", divider lines like *** at the start or end).
     3. Do NOT repeat the title as a top-level heading in the body. Start the body directly with the first section or introduction of the note.
     4. Respond ONLY in the following format:

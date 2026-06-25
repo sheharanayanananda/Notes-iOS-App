@@ -54,17 +54,15 @@ struct SlateTabView: View {
                         onSelect(note)
                     } label: {
                         VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(note.title.count > 20 ? String(note.title.prefix(20)) + "…" : note.title)
-                                    .font(.system(size: 17))
-                                    .truncationMode(.tail)
-                                Spacer()
-                                Text(note.created_at.formatted(date: .abbreviated, time: .shortened))
-                                  .font(.caption)
-                            }
-                            Text(AttributedString(NativeTextView.parseToAttributed(text: note.desc, font: .systemFont(ofSize: 12))))
-                              .lineLimit(3)
-                              .lineHeight(.loose)
+                            Text(note.title)
+                                .font(.system(size: 17))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Text(renderPreview(for: note.desc))
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .lineLimit(3)
+                                .lineHeight(.loose)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
@@ -136,8 +134,101 @@ struct SlateTabView: View {
                 .presentationDetents([.medium, .large])
         }
     }
-    
     // MARK: - Supporting Functions
+    
+    private func renderPreview(for text: String) -> AttributedString {
+        let blocks = MarkdownParser.parse(text)
+        var markdownParts: [String] = []
+        
+        func processBlocks(_ blocks: [MarkdownBlock]) {
+            for block in blocks {
+                switch block {
+                case .paragraph(let text):
+                    markdownParts.append(text)
+                    
+                case .header(_, let text):
+                    markdownParts.append("**\(text)**")
+                    
+                case .blockquote(let nestedBlocks):
+                    let currentCount = markdownParts.count
+                    processBlocks(nestedBlocks)
+                    let addedRange = currentCount..<markdownParts.count
+                    for idx in addedRange {
+                        markdownParts[idx] = "*\(markdownParts[idx])*"
+                    }
+                    
+                case .list(let items):
+                    for item in items {
+                        let prefix: String
+                        if let state = item.checkboxState {
+                            prefix = state == .checked ? "☑ ~~\(item.text)~~" : "☐ \(item.text)"
+                            markdownParts.append(prefix)
+                        } else {
+                            switch item.type {
+                            case .bullet:
+                                prefix = "• \(item.text)"
+                            case .numbered(let number):
+                                prefix = "\(number). \(item.text)"
+                            }
+                            markdownParts.append(prefix)
+                        }
+                    }
+                    
+                case .code(let language, let code):
+                    let displayLang = language?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? language! : "Plain"
+                    let firstLine = code.components(separatedBy: "\n").first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
+                    markdownParts.append("**💻 Code (\(displayLang))**: `\(firstLine)`")
+                    
+                case .table(let headers, _, _):
+                    let headerString = headers.joined(separator: " | ")
+                    markdownParts.append("**📊 Table**: \(headerString)")
+                    
+                case .thematicBreak:
+                    markdownParts.append("---")
+                    
+                case .latex(_, let equation):
+                    let singleLineEq = equation.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+                    markdownParts.append("**🧮 Math**: `\(singleLineEq)`")
+                    
+                case .alert(let type, let nestedBlocks):
+                    let emoji: String
+                    switch type {
+                    case .note: emoji = "ℹ️"
+                    case .tip: emoji = "💡"
+                    case .important: emoji = "⚠️"
+                    case .warning: emoji = "⚠️"
+                    case .caution: emoji = "🛑"
+                    }
+                    let alertTitle = "**\(emoji) \(type.rawValue.capitalized)**: "
+                    let currentCount = markdownParts.count
+                    processBlocks(nestedBlocks)
+                    let addedRange = currentCount..<markdownParts.count
+                    if addedRange.isEmpty {
+                        markdownParts.append(alertTitle)
+                    } else {
+                        markdownParts[addedRange.lowerBound] = alertTitle + markdownParts[addedRange.lowerBound]
+                    }
+                    
+                case .image(let caption, _):
+                    let displayCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? caption : "photo"
+                    markdownParts.append("**🖼️ Image**: \(displayCaption)")
+                }
+            }
+        }
+        
+        processBlocks(blocks)
+        let cleanedText = markdownParts.joined(separator: "\n")
+        
+        var options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        options.allowsExtendedAttributes = true
+        
+        if let attrStr = try? AttributedString(markdown: cleanedText, options: options) {
+            return attrStr
+        } else {
+            return AttributedString(cleanedText)
+        }
+    }
+    
     static func makeDemoNotes() -> [SlateModel] {
         let note1 = SlateModel(title: "Welcome to Slate", desc: "Welcome to Slate! This is an intelligent notes application powered by Ollama cloud models.\n\n- [x] Create a new note\n- [ ] Try the AI Note Organizer\n- [ ] Explore the Smart Lens scanner\n- [ ] Customize settings\n\nDouble tap or tap directly on these checkboxes to toggle them!")
         note1.created_at = Date()

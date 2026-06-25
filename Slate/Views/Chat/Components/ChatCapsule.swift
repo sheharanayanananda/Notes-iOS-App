@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
+import VisionKit
 
 struct ChatCapsule: View {
     // MARK: - Properties
@@ -15,6 +16,8 @@ struct ChatCapsule: View {
     @State private var showPhotoPicker = false
     @State private var showCamera = false
     @State private var showDocumentPicker = false
+    @State private var showDocumentScanner = false
+    @State private var showScannerUnsupportedAlert = false
     
     // MARK: - Drag State
     @State private var dragOffset: CGSize = .zero
@@ -89,6 +92,16 @@ struct ChatCapsule: View {
                 showCamera = true
             }) {
                 Label("Camera", systemImage: "camera")
+            }
+            
+            Button(action: {
+                if VNDocumentCameraViewController.isSupported {
+                    showDocumentScanner = true
+                } else {
+                    showScannerUnsupportedAlert = true
+                }
+            }) {
+                Label("Scan Document", systemImage: "doc.viewfinder")
             }
             
             Button(action: {
@@ -318,6 +331,23 @@ struct ChatCapsule: View {
                 }
             }
             .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $showDocumentScanner) {
+            DocumentScanner(isPresented: $showDocumentScanner) { scannedImages in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    for img in scannedImages {
+                        if selectedImages.count < 10 {
+                            selectedImages.append(img)
+                        }
+                    }
+                }
+            }
+            .ignoresSafeArea()
+        }
+        .alert("Scanning Unsupported", isPresented: $showScannerUnsupportedAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Document scanning is not supported on this device.")
         }
         .onChange(of: selectedItems) { _, newItems in
             Task {

@@ -127,7 +127,7 @@ struct CreateTabView: View {
             }
         }
 
-        .navigationTitle((editingNote == nil || editingNote?.modelContext == nil) ? "New Note" : "Edit Note")
+        .navigationTitle((editingNote == nil || editingNote?.modelContext == nil) ? "New Note" : (editingNote?.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? editingNote!.title : "Edit Note"))
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
