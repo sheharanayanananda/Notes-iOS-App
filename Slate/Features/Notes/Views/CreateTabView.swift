@@ -232,18 +232,17 @@ extension CreateTabView {
             
             do {
                 let client = OllamaClient()
-                let response = try await client.generate(
-                    prompt: rawContent,
-                    system: SystemPrompts.noteExtraction
-                )
+                let messages = SystemPrompts.noteExtractionMessages(for: rawContent)
+                let response = try await client.chat(messages: messages)
+                let responseText = response.content
                 
                 // Parse the structured LLM response
-                if let titleRange = response.range(of: "---TITLE---"),
-                   let bodyRange = response.range(of: "---BODY---") {
+                if let titleRange = responseText.range(of: "---TITLE---"),
+                   let bodyRange = responseText.range(of: "---BODY---") {
                     let titleStart = titleRange.upperBound
                     let titleEnd = bodyRange.lowerBound
-                    let parsedTitle = response[titleStart..<titleEnd].trimmingCharacters(in: .whitespacesAndNewlines)
-                    let parsedBody = response[bodyRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                    let parsedTitle = responseText[titleStart..<titleEnd].trimmingCharacters(in: .whitespacesAndNewlines)
+                    let parsedBody = responseText[bodyRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
                     
                     if !parsedTitle.isEmpty && !parsedBody.isEmpty {
                         extractedTitle = parsedTitle
@@ -256,7 +255,7 @@ extension CreateTabView {
                 }
             } catch {
                 failureMessage = error.localizedDescription
-                print("Ollama note extraction failed: \(error.localizedDescription)")
+                print("Note extraction failed: \(error.localizedDescription)")
             }
             
             await MainActor.run {

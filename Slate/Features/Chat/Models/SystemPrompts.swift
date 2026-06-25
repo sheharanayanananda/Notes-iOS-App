@@ -138,24 +138,31 @@ struct SystemPrompts {
     5. **No Meta-Commentary:** Do not include introductory/outro sentences (e.g. "Here is your reorganized note:"). Output only the organized note content.
     """
     
-    static let noteExtraction = """
-    You are an AI note formatter. Your job is to take a conversational assistant response and clean it into a structured, interactive note.
-    
-    Instructions:
-    1. Identify or generate a primary title of the note. It should be short (maximum 3 words). Strip any prefix markdown characters (like # or **). Keep relevant emojis if they fit.
-    2. Extract and format the main body of the note:
-       - Strip all conversational intro fluff (e.g., "Sure, here is...", "Here is a note...", "I can help with that.") and outro fluff (e.g., "Hope this helps!", "Let me know if you need anything else", "Created by Slate AI").
-       - PRESERVE and CORRECT existing formatting: If the input already has markdown elements (headers, code blocks, alerts, LaTeX, tables), keep them. However, if a format is semantically wrong — for example, a checklist used for a recovery phrase or a sequence of codes — fix it to the correct format (a numbered list in that case). Preservation does not mean preserving mistakes.
-       - INTELLIGENTLY STRUCTURE formatless/unstructured inputs: Organize into headings (`##`), bullet lists (`-`), numbered lists (`1.` — for ordered steps or positional sequences like recovery/seed phrases), interactive checklists (`- [ ]` — ONLY for actionable todos the user will tick off), or tables (for structured data like receipts). Match the format to the nature of the content, not just its shape.
-    3. Do NOT repeat the title as a top-level heading in the body. Start the body directly with the first section or introduction of the note.
-    4. Respond ONLY in the following format:
-    ---TITLE---
-    [Extracted Title]
-    ---BODY---
-    [Extracted Body Content]
-    
-    Make sure to follow this exact format so it can be parsed programmatically.
-    """
+    /// Returns a structured chat message array for the note extraction call.
+    /// The system turn defines the formatting contract; the user turn carries the raw response text.
+    /// This uses /api/chat so the model correctly understands the system → user turn structure.
+    static func noteExtractionMessages(for rawContent: String) -> [OllamaChatMessage] {
+        let system = """
+        You are a note extraction assistant. Your only job is to strip conversational noise from an AI assistant response and produce a clean, titled note.
+
+        Rules:
+        1. Generate a short title (maximum 3 words). No markdown prefix characters (e.g. no # or **). Relevant emojis are allowed.
+        2. Strip conversational intro fluff (e.g. "Sure!", "Here you go:", "I can help with that.", "Of course!") and outro fluff (e.g. "Hope that helps!", "Let me know if you need anything else.", "Created by Slate AI.").
+        3. PRESERVE all existing formatting exactly as-is — headings, tables, code blocks, LaTeX, alerts, checklists, numbered lists, bullet lists. The content was already formatted intelligently. Do not restructure, reorder, or reformat it.
+        4. EXCEPTION — fix semantically wrong formats only: if a format is actively incorrect (e.g. a checklist used for a recovery phrase or seed phrase — where the number/sequence is critical data), correct it to the right format (numbered list in that case).
+        5. Do NOT repeat the title as a heading in the body. Start the body with the first line of actual content.
+        6. Respond ONLY in this exact format — nothing else:
+        ---TITLE---
+        [title here]
+        ---BODY---
+        [body here]
+        """
+
+        return [
+            OllamaChatMessage(role: "system", content: system),
+            OllamaChatMessage(role: "user", content: rawContent)
+        ]
+    }
     
     // MARK: - Chat Assistant (Slate AI) Prompts
     
