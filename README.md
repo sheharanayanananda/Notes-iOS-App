@@ -58,7 +58,7 @@ Slate V2 uses a unified, modular architecture to separate App UI, persistence mo
 - Xcode 15.0 or later
 - iOS 17.0 or later
 - Camera & Photo Library permissions (for media attachments)
-- Ollama API connection (locally hosted or remote)
+- Ollama API connection
 
 ---
 

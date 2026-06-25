@@ -198,6 +198,18 @@ struct ChatView: View {
                         .foregroundColor(.primary)
                 }
             }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    chatManager.clearChat()
+                    chatText = ""
+                }) {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.primary)
+                }
+            }
         }
         .onChange(of: chatManager.isGenerating) { _, newValue in
             if !newValue {

@@ -139,7 +139,7 @@ struct SlateTabView: View {
     
     // MARK: - Supporting Functions
     static func makeDemoNotes() -> [SlateModel] {
-        let note1 = SlateModel(title: "Welcome to Slate", desc: "Welcome to Slate! This is an intelligent, offline-first notes application.\n\n- [x] Create a new note\n- [ ] Try the AI Note Organizer\n- [ ] Explore the Smart Lens scanner\n- [ ] Customize settings\n\nDouble tap or tap directly on these checkboxes to toggle them!")
+        let note1 = SlateModel(title: "Welcome to Slate", desc: "Welcome to Slate! This is an intelligent notes application powered by Ollama cloud models.\n\n- [x] Create a new note\n- [ ] Try the AI Note Organizer\n- [ ] Explore the Smart Lens scanner\n- [ ] Customize settings\n\nDouble tap or tap directly on these checkboxes to toggle them!")
         note1.created_at = Date()
         
         let note2 = SlateModel(title: "Interactive Checklists", desc: "Checklists in Slate are fully interactive. Instead of manually entering edit mode, you can toggle checkboxes directly from the note list preview or the viewer.\n\nWrite checklist items using standard Markdown syntax:\n- [ ] Task 1\n- [x] Task 2\n\nSlate handles the rest!")

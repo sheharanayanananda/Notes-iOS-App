@@ -63,6 +63,8 @@ enum RegexCache {
     static let strikethroughRegex = try? NSRegularExpression(pattern: "~~(.*?)~~", options: [])
     static let emailRegex = try? Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}")
     static let urlRegex = try? Regex("https?://[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}(/[A-Za-z0-9._%/=&?#~+-]*)*")
+    static let uColorRegex = try? NSRegularExpression(pattern: #"(?i)<u\s+style="color:\s*([^";\s>]+);?\s*">(.*?)</u>"#, options: [])
+    static let uPlainRegex = try? NSRegularExpression(pattern: #"(?i)<u>(.*?)</u>"#, options: [])
 }
 
 // MARK: - Markdown Models
@@ -811,14 +813,35 @@ struct FormattedText: View {
             cleanText = regex.stringByReplacingMatches(in: cleanText, options: [], range: range, withTemplate: "[$1](strikethrough://true)")
         }
         
+        if let regex = RegexCache.uColorRegex {
+            let range = NSRange(cleanText.startIndex..., in: cleanText)
+            cleanText = regex.stringByReplacingMatches(in: cleanText, options: [], range: range, withTemplate: "[$2](u-color://$1)")
+        }
+        
+        if let regex = RegexCache.uPlainRegex {
+            let range = NSRange(cleanText.startIndex..., in: cleanText)
+            cleanText = regex.stringByReplacingMatches(in: cleanText, options: [], range: range, withTemplate: "[$1](underline://true)")
+        }
+        
         var options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         options.allowsExtendedAttributes = true
         
         if var attrStr = try? AttributedString(markdown: cleanText, options: options) {
             for run in attrStr.runs {
-                if let link = run.link, link.scheme == "strikethrough" {
-                    attrStr[run.range].link = nil
-                    attrStr[run.range].strikethroughStyle = .single
+                if let link = run.link {
+                    if link.scheme == "strikethrough" {
+                        attrStr[run.range].link = nil
+                        attrStr[run.range].strikethroughStyle = .single
+                    } else if link.scheme == "underline" {
+                        attrStr[run.range].link = nil
+                        attrStr[run.range].underlineStyle = .single
+                    } else if link.scheme == "u-color", let host = link.host {
+                        attrStr[run.range].link = nil
+                        attrStr[run.range].underlineStyle = .single
+                        if let resolvedColor = parseColor(host) {
+                            attrStr[run.range].foregroundColor = resolvedColor
+                        }
+                    }
                 }
                 
                 if run.inlinePresentationIntent?.contains(.code) == true {
@@ -898,4 +921,30 @@ func isRTL(_ text: String) -> Bool {
         }
     }
     return false
+}
+
+fileprivate func parseColor(_ name: String) -> Color? {
+    switch name.lowercased() {
+    case "red": return .red
+    case "green": return .green
+    case "blue": return .blue
+    case "yellow": return .yellow
+    case "orange": return .orange
+    case "purple": return .purple
+    case "pink": return .pink
+    case "gray", "grey": return .gray
+    case "black": return .black
+    case "white": return .white
+    default:
+        let hex = name.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        if hex.count == 6 {
+            var rgbValue: UInt64 = 0
+            Scanner(string: hex).scanHexInt64(&rgbValue)
+            let r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
+            let g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
+            let b = Double(rgbValue & 0x0000FF) / 255.0
+            return Color(red: r, green: g, blue: b)
+        }
+        return nil
+    }
 }

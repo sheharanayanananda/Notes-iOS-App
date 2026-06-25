@@ -445,6 +445,32 @@ struct NativeTextView: UIViewRepresentable {
         ]
         attrString.addAttributes(defaultAttributes, range: NSRange(location: 0, length: attrString.length))
         
+        // Parse and format colored/styled underline tags
+        let colorRegex = try! NSRegularExpression(pattern: #"(?i)<u\s+style="color:\s*([^";\s>]+);?\s*">(.*?)</u>"#, options: [])
+        var matchFound = true
+        while matchFound {
+            let range = NSRange(location: 0, length: attrString.length)
+            if let match = colorRegex.firstMatch(in: attrString.string, options: [], range: range) {
+                let tagRange = match.range(at: 0)
+                let colorRange = match.range(at: 1)
+                let contentRange = match.range(at: 2)
+                
+                let colorName = (attrString.string as NSString).substring(with: colorRange)
+                let contentAttrString = attrString.attributedSubstring(from: contentRange)
+                let mutableContent = NSMutableAttributedString(attributedString: contentAttrString)
+                
+                let newRange = NSRange(location: 0, length: mutableContent.length)
+                mutableContent.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: newRange)
+                if let uiColor = parseUIColor(colorName) {
+                    mutableContent.addAttribute(.foregroundColor, value: uiColor, range: newRange)
+                }
+                
+                attrString.replaceCharacters(in: tagRange, with: mutableContent)
+            } else {
+                matchFound = false
+            }
+        }
+        
         // Parse and format tags
         parseAndReplaceTag(attrString, pattern: #"<u>(.*?)</u>"#, font: font) { mutableContent, range, _ in
             mutableContent.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
@@ -735,7 +761,12 @@ struct NativeTextView: UIViewRepresentable {
                 }
                 
                 if let underline = attrs[.underlineStyle] as? Int, underline > 0 {
-                    prefix += "<u>"
+                    if let foregroundColor = attrs[.foregroundColor] as? UIColor,
+                       let colorName = parseUIColorName(foregroundColor) {
+                        prefix += "<u style=\"color:\(colorName)\">"
+                    } else {
+                        prefix += "<u>"
+                    }
                     suffix = "</u>" + suffix
                 }
                 
@@ -1568,5 +1599,62 @@ struct NativeTextView: UIViewRepresentable {
             }
             return true
         }
+    }
+}
+
+extension NativeTextView {
+    private static func parseUIColor(_ name: String) -> UIColor? {
+        switch name.lowercased() {
+        case "red": return .systemRed
+        case "green": return .systemGreen
+        case "blue": return .systemBlue
+        case "yellow": return .systemYellow
+        case "orange": return .systemOrange
+        case "purple": return .systemPurple
+        case "pink": return .systemPink
+        case "gray", "grey": return .systemGray
+        case "black": return .label
+        case "white": return .systemBackground
+        default:
+            let hex = name.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+            if hex.count == 6 {
+                var rgbValue: UInt64 = 0
+                Scanner(string: hex).scanHexInt64(&rgbValue)
+                let r = CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0
+                let g = CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0
+                let b = CGFloat(rgbValue & 0x0000FF) / 255.0
+                return UIColor(red: r, green: g, blue: b, alpha: 1.0)
+            }
+            return nil
+        }
+    }
+    
+    private static func parseUIColorName(_ color: UIColor) -> String? {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        
+        guard color.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        
+        if abs(r - 0.2) < 0.15 && abs(g - 0.78) < 0.15 && abs(b - 0.35) < 0.15 { return "green" }
+        if r == 0.0 && g > 0.4 && b == 0.0 { return "green" }
+        if abs(r - 1.0) < 0.1 && g == 0.0 && b == 0.0 { return "red" }
+        if abs(r - 0.99) < 0.15 && abs(g - 0.23) < 0.15 && abs(b - 0.18) < 0.15 { return "red" }
+        if r == 0.0 && g == 0.0 && abs(b - 1.0) < 0.1 { return "blue" }
+        if abs(r - 0.0) < 0.15 && abs(g - 0.47) < 0.15 && abs(b - 1.0) < 0.15 { return "blue" }
+        if abs(r - 1.0) < 0.1 && abs(g - 0.8) < 0.15 && b == 0.0 { return "yellow" }
+        if abs(r - 1.0) < 0.1 && abs(g - 0.58) < 0.15 && b == 0.0 { return "orange" }
+        
+        if color == UIColor.systemGreen { return "green" }
+        if color == UIColor.systemRed { return "red" }
+        if color == UIColor.systemBlue { return "blue" }
+        if color == UIColor.systemYellow { return "yellow" }
+        if color == UIColor.systemOrange { return "orange" }
+        if color == UIColor.systemPurple { return "purple" }
+        if color == UIColor.systemPink { return "pink" }
+        if color == UIColor.systemGray { return "gray" }
+        
+        return nil
     }
 }
