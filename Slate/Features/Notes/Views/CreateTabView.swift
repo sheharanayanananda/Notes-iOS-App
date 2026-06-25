@@ -228,6 +228,7 @@ extension CreateTabView {
         Task {
             var extractedTitle = ""
             var extractedBody = ""
+            var failureMessage: String? = nil
             
             do {
                 let client = OllamaClient()
@@ -236,7 +237,7 @@ extension CreateTabView {
                     system: SystemPrompts.noteExtraction
                 )
                 
-                // Parse response
+                // Parse the structured LLM response
                 if let titleRange = response.range(of: "---TITLE---"),
                    let bodyRange = response.range(of: "---BODY---") {
                     let titleStart = titleRange.upperBound
@@ -247,30 +248,34 @@ extension CreateTabView {
                     if !parsedTitle.isEmpty && !parsedBody.isEmpty {
                         extractedTitle = parsedTitle
                         extractedBody = parsedBody
+                    } else {
+                        failureMessage = "Couldn't extract a note from this response. Please try again."
                     }
+                } else {
+                    failureMessage = "Couldn't extract a note from this response. Please try again."
                 }
             } catch {
+                failureMessage = error.localizedDescription
                 print("Ollama note extraction failed: \(error.localizedDescription)")
             }
             
-            // Fallback to heuristic parser if LLM extraction failed or returned empty
-            if extractedTitle.isEmpty || extractedBody.isEmpty {
-                let heuristic = NoteExtractionUtility.parseHeuristically(text: rawContent)
-                extractedTitle = heuristic.title
-                extractedBody = heuristic.body
-            }
-            
             await MainActor.run {
-                // Update the model properties directly
-                note.title = extractedTitle
-                note.desc = extractedBody
-                
-                wasTitlePreGenerated = true
-                
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isOrganizing = false
                 }
-                animateBlocksOneByOne(extractedBody)
+                
+                if let failure = failureMessage {
+                    // Surface the error clearly and dismiss the note view
+                    errorMessage = failure
+                    showErrorAlert = true
+                    cancel()
+                } else {
+                    // Apply the LLM-extracted content
+                    note.title = extractedTitle
+                    note.desc = extractedBody
+                    wasTitlePreGenerated = true
+                    animateBlocksOneByOne(extractedBody)
+                }
             }
         }
     }

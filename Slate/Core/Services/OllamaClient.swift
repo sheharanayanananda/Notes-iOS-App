@@ -124,7 +124,7 @@ final class OllamaClient {
         self.baseURL = baseURL
     }
 
-    func generate(prompt: String, system: String? = nil, image: UIImage? = nil) async throws -> String {
+    func generate(prompt: String, system: String? = nil, image: UIImage? = nil, reasoningLevel: String = "low") async throws -> String {
         guard let resolvedKey = apiKey, !resolvedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw OllamaError.missingAPIKey
         }
@@ -148,7 +148,10 @@ final class OllamaClient {
         
         if let image = image, let jpegData = image.jpegData(compressionQuality: 0.75) {
             body["images"] = [jpegData.base64EncodedString()]
-            body["thinking"] = "low"
+        }
+        
+        if reasoningLevel.lowercased() != "off" {
+            body["thinking"] = reasoningLevel.lowercased()
         }
         
         if let system = system {

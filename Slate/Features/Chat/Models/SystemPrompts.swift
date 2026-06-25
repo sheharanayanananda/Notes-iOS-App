@@ -104,8 +104,8 @@ enum ChatPreset: String, CaseIterable, Identifiable, Codable {
     
     var thinkingLevel: String {
         switch self {
-        case .slateLite: return "Off"
-        case .slateFlash: return "Off"
+        case .slateLite: return "Low"
+        case .slateFlash: return "Low"
         case .slateCreative: return "Low"
         case .slateScholar: return "High"
         case .slateCoder: return "High"
@@ -129,7 +129,11 @@ struct SystemPrompts {
     # Instructions
     1. **Identify the Core Subject:** Determine the main topic of the note and create a clear heading hierarchy.
     2. **Synthesize Details:** Group scattered thoughts into logical sub-sections (`## Section`).
-    3. **Apply Clean Markdown:** Use checklists (`- [ ]`) for tasks/todos, bullet lists (`-`) for brainstorms, and tables for data points.
+    3. **Apply Clean Markdown (match format to meaning):**
+       - `- [ ]` checklists: ONLY for real todos or actionable tasks the user will physically tick off. Never use for reference data, sequences, codes, or lists of information.
+       - `1.` numbered lists: For ordered steps, ranked items, or any sequence where position is meaningful data (e.g., recovery/seed phrases, instructions, ranked priorities).
+       - `-` bullet lists: For unordered reference items, brainstormed ideas, or feature lists where sequence doesn't matter.
+       - Tables: For structured data with multiple attributes per item (e.g., item + price, name + date).
     4. **Tone & Style:** Maintain the user's intent but polish grammar, remove duplicate thoughts, and format text for rapid scanning.
     5. **No Meta-Commentary:** Do not include introductory/outro sentences (e.g. "Here is your reorganized note:"). Output only the organized note content.
     """
@@ -141,8 +145,8 @@ struct SystemPrompts {
     1. Identify or generate a primary title of the note. It should be short (maximum 3 words). Strip any prefix markdown characters (like # or **). Keep relevant emojis if they fit.
     2. Extract and format the main body of the note:
        - Strip all conversational intro fluff (e.g., "Sure, here is...", "Here is a note...", "I can help with that.") and outro fluff (e.g., "Hope this helps!", "Let me know if you need anything else", "Created by Slate AI").
-       - PRESERVE existing formatting: If the input already has markdown elements (like interactive checklists `- [ ]` or `- [x]`, standard markdown tables, code blocks, alerts/callouts, LaTeX, headers), keep them exactly as they are. Do not simplify or flatten them.
-       - INTELLIGENTLY STRUCTURE formatless/unstructured inputs: If the input is unstructured, conversational, or formatless (e.g., a raw receipt message, a transcription of a conversation, a stream of thoughts, or a flat list of tasks), organize it into clear sections using headings (`##`), bullet points (`-`), interactive checklists (`- [ ]`), or tables (e.g., for receipts/item-price lists) to make it a beautifully formatted, interactive note.
+       - PRESERVE and CORRECT existing formatting: If the input already has markdown elements (headers, code blocks, alerts, LaTeX, tables), keep them. However, if a format is semantically wrong — for example, a checklist used for a recovery phrase or a sequence of codes — fix it to the correct format (a numbered list in that case). Preservation does not mean preserving mistakes.
+       - INTELLIGENTLY STRUCTURE formatless/unstructured inputs: Organize into headings (`##`), bullet lists (`-`), numbered lists (`1.` — for ordered steps or positional sequences like recovery/seed phrases), interactive checklists (`- [ ]` — ONLY for actionable todos the user will tick off), or tables (for structured data like receipts). Match the format to the nature of the content, not just its shape.
     3. Do NOT repeat the title as a top-level heading in the body. Start the body directly with the first section or introduction of the note.
     4. Respond ONLY in the following format:
     ---TITLE---
@@ -168,14 +172,18 @@ struct SystemPrompts {
     # Formatting Rules
     Use the following markdown formatting features thoughtfully based on context to enrich your responses:
     1. **Headings:** Use structured hierarchy (`#`, `##`, `###`) for longer, detailed responses.
-    2. **Lists:** Bullet points (`-`), numbered lists (`1.`), and interactive task checklists (`- [ ]` or `- [x]`).
+    2. **Lists — choose the right type based on what the content actually is:**
+       - Bullet (`-`): Unordered items with no inherent sequence (brainstorms, options, features).
+       - Numbered (`1.`): Ordered steps, ranked items, or any sequence where position is meaningful data (instructions, recovery/seed phrases, rankings). The number is part of the meaning — never omit it.
+       - Checklist (`- [ ]` / `- [x]`): ONLY for items a person would realistically tick off as they complete them (todos, task plans, shopping lists). Ask yourself: "Would the user actually check this off one by one?" If not, never use a checklist. Recovery phrases, codes, passwords, seeds, and ranked sequences must never be formatted as checklists.
     3. **Emphasis:** Bold (`**text**`), Italic (`*text*`), Underline (`<u>text</u>`), and Strikethrough (`~~text~~`).
     4. **Mathematics:** Inline Math (`$formula$`) and Display Math (`$$formula$$`) using standard TeX/MathJax notation.
     5. **Code Blocks:** Inline code using single backticks and multi-line code blocks using triple backticks with language tags (e.g., ````swift````).
     6. **Code Diffs:** Code diffs using ````diff```` syntax with lines prefixed by `+` (additions) or `-` (deletions).
-    7. **Tables:** Standard Markdown tables.
+    7. **Tables:** Standard Markdown tables for structured data with multiple attributes per item.
     8. **Callouts:** GitHub-style alert blockquotes (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`).
     9. **Images:** Standard markdown image syntax (`![caption](url)`).
+    10. **Formatting Judgment:** Before choosing a format, ask: what is the purpose of this content for the user? Formatting must serve comprehension, not just impose structure. A recovery phrase needs its sequence numbers. A task list needs checkboxes. A comparison needs a table. Never apply a format because it looks tidy — apply it because it matches the content's meaning.
 
     *Constraint:* Never expose internal thinking processes. DO NOT output reasoning or thought blocks. Keep your output strictly to the final conversational response. Do not output raw HTML.
     """
