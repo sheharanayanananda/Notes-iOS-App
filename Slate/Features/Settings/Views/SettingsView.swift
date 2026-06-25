@@ -16,7 +16,6 @@ struct SettingsView: View {
     var onDismiss: (() -> Void)? = nil
 
     @State private var showKey: Bool = false
-    @AppStorage("is_demo_mode") private var isDemoMode = false
 
     // MARK: - UI Code
     var body: some View {
@@ -62,21 +61,16 @@ struct SettingsView: View {
                     }
                 }
             }
-            
-            Section(
-                footer: Text("Enabling demo mode loads pre-configured promotional slates, populates new notes with rich formatting templates, and simulates tools.")
-            ) {
-                Toggle("Demo Mode", isOn: $isDemoMode)
-            }
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .confirmationAction) {
                 Button(action: {
                     dismissView()
                 }) {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: "chevron.down.2")
+                        .font(.system(size: 15, weight: .medium))
                 }
             }
         }
@@ -92,6 +86,10 @@ struct SettingsView: View {
 // MARK: - Main Functions
 extension SettingsView {
     private func dismissView() {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.prepare()
+        generator.impactOccurred()
+        
         viewModel.savePendingChanges()
         if let onDismiss = onDismiss {
             onDismiss()

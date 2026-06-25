@@ -12,15 +12,6 @@ struct SlateTabView: View {
     // MARK: - Properties
     @Environment(\.modelContext) private var context
     @Query(sort: \SlateModel.created_at, order: .reverse) private var notes: [SlateModel]
-    @AppStorage("is_demo_mode") private var isDemoMode = false
-    
-    private var displayedNotes: [SlateModel] {
-        if isDemoMode {
-            return SlateTabView.makeDemoNotes()
-        } else {
-            return notes
-        }
-    }
     
     @State private var noteToShare: SlateModel?
     @State private var showShareOptions = false
@@ -49,7 +40,7 @@ struct SlateTabView: View {
     var body: some View {
         ZStack {
             List {
-                ForEach(displayedNotes) { note in
+                ForEach(notes) { note in
                     Button {
                         onSelect(note)
                     } label: {
@@ -70,9 +61,7 @@ struct SlateTabView: View {
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button("Delete", systemImage: "trash", role: .destructive) {
-                            if !isDemoMode {
-                                context.delete(note)
-                            }
+                            context.delete(note)
                         }
                     }
                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -109,7 +98,7 @@ struct SlateTabView: View {
                 }
             }
             .overlay {
-                if displayedNotes.isEmpty {
+                if notes.isEmpty {
                     ContentUnavailableView(
                         "Hello !",
                         systemImage: "scribble.variable",
@@ -229,24 +218,7 @@ struct SlateTabView: View {
         }
     }
     
-    static func makeDemoNotes() -> [SlateModel] {
-        let note1 = SlateModel(title: "Welcome to Slate", desc: "Welcome to Slate! This is an intelligent notes application powered by Ollama cloud models.\n\n- [x] Create a new note\n- [ ] Try the AI Note Organizer\n- [ ] Explore the Smart Lens scanner\n- [ ] Customize settings\n\nDouble tap or tap directly on these checkboxes to toggle them!")
-        note1.created_at = Date()
-        
-        let note2 = SlateModel(title: "Interactive Checklists", desc: "Checklists in Slate are fully interactive. Instead of manually entering edit mode, you can toggle checkboxes directly from the note list preview or the viewer.\n\nWrite checklist items using standard Markdown syntax:\n- [ ] Task 1\n- [x] Task 2\n\nSlate handles the rest!")
-        note2.created_at = Date().addingTimeInterval(-60)
-        
-        let note3 = SlateModel(title: "AI Note Organizer", desc: "Unstructured notes are hard to read. Write down your messy thoughts, and tap the Sparkles icon in the editor toolbar. The AI will automatically clean up typos, fix grammar, and organize your text into structured bullet points and checklist items.")
-        note3.created_at = Date().addingTimeInterval(-120)
-        
-        let note4 = SlateModel(title: "Smart Lens Visual AI", desc: "Tap the Smart Lens button to scan documents, whiteboards, or receipts. The app uses on-device Vision OCR to extract text and image classification to identify objects. The user-selected Gemma model then synthesizes a clean, context-aware note. If no text is found, it fallbacks to describing the visual scene.")
-        note4.created_at = Date().addingTimeInterval(-180)
-        
-        let note5 = SlateModel(title: "Note Export Options", desc: "Need your note elsewhere? Swipe left on any note to open the share options:\n\n1. Share as Rich Text (RTF)\n2. Save and share as PDF document\n3. Export as plain text (.txt)")
-        note5.created_at = Date().addingTimeInterval(-240)
-        
-        return [note1, note2, note3, note4, note5]
-    }
+
 }
 
 // MARK: - Previews
