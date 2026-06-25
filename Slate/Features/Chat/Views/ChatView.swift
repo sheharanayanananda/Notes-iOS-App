@@ -39,6 +39,7 @@ struct ChatView: View {
     @State private var isTextFieldDisabled = false
     @State private var scrollTask: Task<Void, Never>? = nil
     @State private var hasAppeared = false
+    @State private var showHistory = false
 
     
     var body: some View {
@@ -187,29 +188,39 @@ struct ChatView: View {
             }
             
             ToolbarItem(placement: .topBarTrailing) {
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                    generator.impactOccurred()
-                    chatManager.clearChat()
-                    chatText = ""
-                }) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 15))
-                        .foregroundColor(.primary)
+                HStack(spacing: 15) {
+                    Button(action: {
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        chatManager.startNewSession(preset: displayedPreset)
+                        chatText = ""
+                    }) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 15))
+                            .foregroundColor(.primary)
+                    }
+                    
+                    Button(action: {
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        showHistory = true
+                    }) {
+                        Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                            .font(.system(size: 15))
+                            .foregroundColor(.primary)
+                    }
                 }
+                .padding(.horizontal, 6)
             }
-            
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                    generator.impactOccurred()
-                    chatManager.clearChat()
-                    chatText = ""
-                }) {
-                    Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                        .font(.system(size: 15))
-                        .foregroundColor(.primary)
-                }
+        }
+        .sheet(isPresented: $showHistory) {
+            ChatHistoryView()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.hidden)
+        }
+        .onChange(of: chatManager.activeSessionId) { _, newValue in
+            if let activeId = newValue, let session = chatManager.sessions.first(where: { $0.id == activeId }) {
+                selectPreset(session.preset)
             }
         }
         .onChange(of: chatManager.isGenerating) { _, newValue in
@@ -240,6 +251,12 @@ extension ChatView {
         generator.impactOccurred()
         DispatchQueue.main.async {
             storedPreset = preset
+            if let activeId = chatManager.activeSessionId, let index = chatManager.sessions.firstIndex(where: { $0.id == activeId }) {
+                if chatManager.sessions[index].preset != preset {
+                    chatManager.sessions[index].preset = preset
+                    chatManager.saveCurrentState()
+                }
+            }
         }
     }
     
@@ -536,21 +553,120 @@ struct AddToNoteButton: View {
 
 struct ChatErrorBubbleView: View {
     let message: String
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var parsedError: (title: String, description: String, icon: String, color: Color) {
+        let lower = message.lowercased()
+        if lower.contains("offline") || lower.contains("internet connection appears to be offline") || lower.contains("network connection") {
+            return (
+                title: "Connection Offline",
+                description: "No internet connection detected. Please check your network connection.",
+                icon: "wifi.slash",
+                color: .red
+            )
+        } else if lower.contains("timed out") || lower.contains("timeout") {
+            return (
+                title: "Request Timeout",
+                description: "The request took too long. Please check your network and try again.",
+                icon: "timer",
+                color: .orange
+            )
+        } else if lower.contains("api key is missing") || lower.contains("missingapikey") {
+            return (
+                title: "API Key Required",
+                description: "Your API Key is missing. Please configure it in Settings.",
+                icon: "key.fill",
+                color: .orange
+            )
+        } else if lower.contains("unauthorized") || lower.contains("401") || lower.contains("incorrect or inactive") {
+            return (
+                title: "Authentication Failed",
+                description: "The API Key is incorrect or inactive. Please verify it in Settings.",
+                icon: "exclamationmark.shield.fill",
+                color: .red
+            )
+        } else if lower.contains("limit") || lower.contains("quota") || lower.contains("429") {
+            return (
+                title: "Limit Reached",
+                description: "You have reached the usage limit. Please try again later.",
+                icon: "exclamationmark.bubble.fill",
+                color: .orange
+            )
+        } else if lower.contains("host") || lower.contains("cannot connect") || lower.contains("connection refused") {
+            return (
+                title: "Server Unreachable",
+                description: "Unable to connect to the intelligence server. Please try again later.",
+                icon: "server.rack",
+                color: .red
+            )
+        } else {
+            return (
+                title: "Service Issue",
+                description: message,
+                icon: "exclamationmark.triangle.fill",
+                color: .red
+            )
+        }
+    }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 16))
-                .foregroundColor(.red)
-                .padding(.top, 2)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(message)
-                    .font(.system(size: 14))
-                    .foregroundColor(.red)
+        let err = parsedError
+        HStack(alignment: .top, spacing: 14) {
+            // Left icon container
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(err.color.opacity(0.12))
+                
+                Image(systemName: err.icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(err.color)
             }
+            .frame(width: 38, height: 38)
+            
+            // Center texts
+            VStack(alignment: .leading, spacing: 4) {
+                Text(err.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.primary)
+                
+                Text(err.description)
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            Spacer(minLength: 8)
+            
+            // Dismiss button
+            Button(action: {
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.impactOccurred()
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    ChatManager.shared.errorMessage = nil
+                }
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary.opacity(0.8))
+                    .frame(width: 24, height: 24)
+                    .background(
+                        Circle()
+                            .fill(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.90))
+                    )
+            }
+            .buttonStyle(ScaleButtonStyle())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(colorScheme == .dark ? Color(white: 0.11) : Color(white: 0.97))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(err.color.opacity(0.15), lineWidth: 1.5)
+        )
+        .padding(.vertical, 4)
     }
 }
 

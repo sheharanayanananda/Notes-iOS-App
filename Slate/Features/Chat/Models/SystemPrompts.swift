@@ -31,7 +31,7 @@ enum MemoryLimit: Int, Comparable, CaseIterable, Identifiable {
     }
 }
 
-enum ChatPreset: String, CaseIterable, Identifiable {
+enum ChatPreset: String, CaseIterable, Identifiable, Codable {
     case slateLite = "Slate Lite"
     case slateFlash = "Slate Flash"
     case slateCreative = "Slate Creative"
@@ -135,11 +135,14 @@ struct SystemPrompts {
     """
     
     static let noteExtraction = """
-    You are an AI note formatter. Your job is to take a conversational assistant response and clean it into a structured note.
+    You are an AI note formatter. Your job is to take a conversational assistant response and clean it into a structured, interactive note.
     
     Instructions:
-    1. Identify the primary title of the note. It should be short (maximum 3 words). Strip any prefix markdown characters (like # or **). Keep relevant emojis if they fit.
-    2. Extract the main body of the note. Strip any conversational intro fluff (e.g. "Sure, here is...", "Here is a note...") and outro fluff (e.g. "Let me know if you need anything else", "Created by Slate AI", divider lines like *** at the start or end).
+    1. Identify or generate a primary title of the note. It should be short (maximum 3 words). Strip any prefix markdown characters (like # or **). Keep relevant emojis if they fit.
+    2. Extract and format the main body of the note:
+       - Strip all conversational intro fluff (e.g., "Sure, here is...", "Here is a note...", "I can help with that.") and outro fluff (e.g., "Hope this helps!", "Let me know if you need anything else", "Created by Slate AI").
+       - PRESERVE existing formatting: If the input already has markdown elements (like interactive checklists `- [ ]` or `- [x]`, standard markdown tables, code blocks, alerts/callouts, LaTeX, headers), keep them exactly as they are. Do not simplify or flatten them.
+       - INTELLIGENTLY STRUCTURE formatless/unstructured inputs: If the input is unstructured, conversational, or formatless (e.g., a raw receipt message, a transcription of a conversation, a stream of thoughts, or a flat list of tasks), organize it into clear sections using headings (`##`), bullet points (`-`), interactive checklists (`- [ ]`), or tables (e.g., for receipts/item-price lists) to make it a beautifully formatted, interactive note.
     3. Do NOT repeat the title as a top-level heading in the body. Start the body directly with the first section or introduction of the note.
     4. Respond ONLY in the following format:
     ---TITLE---

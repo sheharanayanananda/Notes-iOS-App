@@ -12,23 +12,35 @@ struct NoteExtractionUtility {
         
         var titleLineIndex: Int? = nil
         
-        // Find the first line that looks like a markdown header or a bold header
+        // Find the first line that looks like a markdown header or a bold title
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.hasPrefix("#") || trimmed.hasPrefix("**") {
+            if trimmed.hasPrefix("#") || (trimmed.hasPrefix("**") && trimmed.hasSuffix("**")) {
                 titleLineIndex = index
                 break
             }
         }
         
-        // Fallback: If no clear title line is found, use the first non-empty line
-        let startIndex = titleLineIndex ?? lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) ?? 0
+        var title = ""
+        var bodyStart = 0
         
-        let rawTitle = startIndex < lines.count ? lines[startIndex] : ""
-        let title = cleanTitle(rawTitle)
+        if let titleIndex = titleLineIndex {
+            let rawTitle = lines[titleIndex]
+            title = cleanTitle(rawTitle)
+            bodyStart = titleIndex + 1
+        } else {
+            // Find the first non-empty line to generate a title from
+            if let firstNonEmptyIndex = lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                let firstLine = lines[firstNonEmptyIndex]
+                title = generateFallbackTitle(from: firstLine)
+                // Do NOT skip the first line because it contains actual content (like a checklist, table, etc.)
+                bodyStart = firstNonEmptyIndex
+            } else {
+                title = "New Note"
+                bodyStart = 0
+            }
+        }
         
-        // The body starts after the title line
-        let bodyStart = startIndex + 1
         var bodyLines = bodyStart < lines.count ? Array(lines[bodyStart...]) : []
         
         // Clean up leading newlines/empty lines in the body
@@ -86,7 +98,7 @@ struct NoteExtractionUtility {
     }
     
     private static func generateFallbackTitle(from text: String) -> String {
-        let cleaned = text.trimmingCharacters(in: CharacterSet(charactersIn: "# ").union(.whitespacesAndNewlines))
+        let cleaned = text.trimmingCharacters(in: CharacterSet(charactersIn: "#-*[]| \n\r\t"))
         let words = cleaned.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
         let firstThree = words.prefix(3).joined(separator: " ")
         return firstThree.isEmpty ? "New Note" : firstThree

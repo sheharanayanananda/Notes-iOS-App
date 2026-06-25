@@ -100,7 +100,7 @@ enum OllamaError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "Ollama API Key is missing. Please go to the Settings popover in the Slate tab to configure it."
+            return "API Key is missing. Please go to Settings to configure it."
         case .invalidResponse:
             return "Invalid response from the server."
         case .apiError(let message):
@@ -163,7 +163,7 @@ final class OllamaClient {
             if httpResponse.statusCode == 401 {
                 throw OllamaError.apiError("Unauthorized: The API Key is incorrect or inactive.")
             } else if httpResponse.statusCode == 429 {
-                throw OllamaError.apiError("Usage Limit Exceeded: You have reached your weekly Ollama usage limit.")
+                throw OllamaError.apiError("Usage Limit Exceeded: You have reached your weekly usage limit.")
             } else if httpResponse.statusCode != 200 {
                 if let errObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let errMsg = errObj["error"] as? String {
@@ -231,7 +231,7 @@ final class OllamaClient {
             if httpResponse.statusCode == 401 {
                 throw OllamaError.apiError("Unauthorized: The API Key is incorrect or inactive.")
             } else if httpResponse.statusCode == 429 {
-                throw OllamaError.apiError("Usage Limit Exceeded: You have reached your weekly Ollama usage limit.")
+                throw OllamaError.apiError("Usage Limit Exceeded: You have reached your weekly usage limit.")
             } else if httpResponse.statusCode != 200 {
                 if let errObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let errMsg = errObj["error"] as? String {
@@ -301,7 +301,7 @@ final class OllamaClient {
             if httpResponse.statusCode == 401 {
                 throw OllamaError.apiError("Unauthorized: The API Key is incorrect or inactive.")
             } else if httpResponse.statusCode == 429 {
-                throw OllamaError.apiError("Usage Limit Exceeded: You have reached your weekly Ollama usage limit.")
+                throw OllamaError.apiError("Usage Limit Exceeded: You have reached your weekly usage limit.")
             } else if httpResponse.statusCode != 200 {
                 throw OllamaError.apiError("API Error: HTTP Status \(httpResponse.statusCode)")
             }

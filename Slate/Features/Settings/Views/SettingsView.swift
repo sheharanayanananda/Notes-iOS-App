@@ -65,11 +65,11 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button(action: {
                     dismissView()
                 }) {
-                    Image(systemName: "chevron.down.2")
+                    Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
                 }
             }

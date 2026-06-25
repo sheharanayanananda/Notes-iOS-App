@@ -11,17 +11,47 @@ import UserNotifications
 import UIKit
 import Combine
 
+struct ChatSession: Codable, Identifiable, Equatable {
+    var id: UUID
+    var title: String
+    var messages: [OllamaChatMessage]
+    var lastUpdated: Date
+    var preset: ChatPreset
+    
+    init(id: UUID = UUID(), title: String = "New Chat", messages: [OllamaChatMessage] = [], lastUpdated: Date = Date(), preset: ChatPreset = .slateFlash) {
+        self.id = id
+        self.title = title
+        self.messages = messages
+        self.lastUpdated = lastUpdated
+        self.preset = preset
+    }
+}
+
 @MainActor
 final class ChatManager: ObservableObject {
     static let shared = ChatManager()
     
     @Published var messages: [OllamaChatMessage] = []
+    @Published var sessions: [ChatSession] = []
+    @Published var activeSessionId: UUID? = nil
+    
     @Published var isGenerating = false
     @Published var errorMessage: String? = nil
     @Published var newlyGeneratedMessageId: String? = nil
     
     private init() {
-        self.messages = loadMessages()
+        let loaded = loadSessions()
+        self.sessions = loaded
+        let sorted = loaded.sorted(by: { $0.lastUpdated > $1.lastUpdated })
+        if let first = sorted.first {
+            self.activeSessionId = first.id
+            self.messages = first.messages
+        } else {
+            let newSess = ChatSession()
+            self.sessions = [newSess]
+            self.activeSessionId = newSess.id
+            self.messages = []
+        }
     }
     
     private func getFileURL() -> URL? {
@@ -30,30 +60,122 @@ final class ChatManager: ObservableObject {
             .appendingPathComponent("active_chat.json")
     }
     
-    private func loadMessages() -> [OllamaChatMessage] {
-        guard let url = getFileURL() else { return [] }
+    private func getSessionsFileURL() -> URL? {
+        try? FileManager.default
+            .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("chat_sessions.json")
+    }
+    
+    private func loadSessions() -> [ChatSession] {
+        guard let url = getSessionsFileURL() else { return [] }
+        if FileManager.default.fileExists(atPath: url.path) {
+            do {
+                let data = try Data(contentsOf: url)
+                return try JSONDecoder().decode([ChatSession].self, from: data)
+            } catch {
+                print("Failed to load sessions: \(error)")
+            }
+        }
+        
+        // Legacy migration
+        if let legacyUrl = getFileURL(), FileManager.default.fileExists(atPath: legacyUrl.path) {
+            do {
+                let data = try Data(contentsOf: legacyUrl)
+                let legacyMessages = try JSONDecoder().decode([OllamaChatMessage].self, from: data)
+                if !legacyMessages.isEmpty {
+                    var title = "Saved Chat"
+                    if let firstUserMsg = legacyMessages.first(where: { $0.role == "user" }) {
+                        let content = firstUserMsg.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !content.isEmpty {
+                            title = String(content.prefix(30)) + (content.count > 30 ? "..." : "")
+                        }
+                    }
+                    let legacySession = ChatSession(
+                        id: UUID(),
+                        title: title,
+                        messages: legacyMessages,
+                        lastUpdated: Date(),
+                        preset: .slateFlash
+                    )
+                    try? FileManager.default.removeItem(at: legacyUrl)
+                    let sessions = [legacySession]
+                    saveSessions(sessions)
+                    return sessions
+                }
+            } catch {
+                print("Failed to migrate legacy messages: \(error)")
+            }
+        }
+        
+        // Default session if nothing exists
+        let defaultSession = ChatSession()
+        let sessions = [defaultSession]
+        saveSessions(sessions)
+        return sessions
+    }
+    
+    private func saveSessions(_ targetSessions: [ChatSession]) {
+        guard let url = getSessionsFileURL() else { return }
         do {
-            let data = try Data(contentsOf: url)
-            return try JSONDecoder().decode([OllamaChatMessage].self, from: data)
+            let data = try JSONEncoder().encode(targetSessions)
+            try data.write(to: url)
         } catch {
-            return []
+            print("Failed to save chat sessions: \(error)")
         }
     }
     
-    private func saveMessages(_ msgs: [OllamaChatMessage]) {
-        guard let url = getFileURL() else { return }
-        do {
-            let data = try JSONEncoder().encode(msgs)
-            try data.write(to: url)
-        } catch {
-            print("Failed to save chat messages: \(error)")
+    func saveCurrentState() {
+        guard let activeId = activeSessionId else { return }
+        if let index = sessions.firstIndex(where: { $0.id == activeId }) {
+            sessions[index].messages = messages
+            sessions[index].lastUpdated = Date()
+            
+            // Auto-update title if it is the default "New Chat" or empty
+            if sessions[index].title == "New Chat" || sessions[index].title.isEmpty {
+                if let firstUserMsg = messages.first(where: { $0.role == "user" }) {
+                    let content = firstUserMsg.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !content.isEmpty {
+                        sessions[index].title = String(content.prefix(30)) + (content.count > 30 ? "..." : "")
+                    }
+                }
+            }
+            saveSessions(sessions)
         }
+    }
+    
+    func selectSession(_ session: ChatSession) {
+        saveCurrentState()
+        activeSessionId = session.id
+        messages = session.messages
+        errorMessage = nil
+    }
+    
+    func startNewSession(preset: ChatPreset = .slateFlash) {
+        saveCurrentState()
+        let newSess = ChatSession(preset: preset)
+        sessions.append(newSess)
+        activeSessionId = newSess.id
+        messages = []
+        errorMessage = nil
+        saveSessions(sessions)
+    }
+    
+    func deleteSession(id: UUID) {
+        sessions.removeAll { $0.id == id }
+        if activeSessionId == id {
+            let newSess = ChatSession()
+            sessions.append(newSess)
+            activeSessionId = newSess.id
+            messages = []
+            errorMessage = nil
+        }
+        saveSessions(sessions)
     }
     
     func clearChat() {
         messages = []
-        saveMessages([])
         errorMessage = nil
+        saveCurrentState()
     }
     
     func sendMessage(
@@ -80,7 +202,7 @@ final class ChatManager: ObservableObject {
         
         let assistantPlaceholder = OllamaChatMessage(role: "assistant", content: "")
         messages.append(assistantPlaceholder)
-        saveMessages(messages)
+        saveCurrentState()
         
         isGenerating = true
         errorMessage = nil
@@ -132,7 +254,7 @@ final class ChatManager: ObservableObject {
                         self.messages[lastIndex] = finalMessage
                     }
                     self.isGenerating = false
-                    self.saveMessages(self.messages)
+                    self.saveCurrentState()
                     
                     self.newlyGeneratedMessageId = finalMessage.id
                     
