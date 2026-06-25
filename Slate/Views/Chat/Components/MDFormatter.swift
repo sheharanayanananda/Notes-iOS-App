@@ -446,10 +446,14 @@ struct MarkdownParser {
                     var stripped = String(contentText.trimmingCharacters(in: .whitespaces).dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
                     
                     // Strip redundant bullets/dashes if present (e.g. "- [ ] - text" or "- [ ] * text")
-                    if stripped.hasPrefix("- ") || stripped.hasPrefix("* ") {
-                        stripped = String(stripped.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
-                    } else if stripped.hasPrefix("-") || stripped.hasPrefix("*") {
-                        stripped = String(stripped.dropFirst(1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    while true {
+                        let initial = stripped
+                        for prefix in ["- ", "– ", "— ", "* ", "• ", "-", "–", "—", "*", "•"] {
+                            if stripped.hasPrefix(prefix) {
+                                stripped = String(stripped.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        }
+                        if stripped == initial { break }
                     }
                     
                     contentText = stripped

@@ -38,38 +38,46 @@ struct CreateTabView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach($blockItems) { $item in
-                        if item.isSpecial {
-                            SpecialBlockWrapper(
-                                isSelected: selectedBlockID == item.id,
-                                onTap: {
-                                    selectedBlockID = item.id
-                                    focusedBlockID = nil
-                                },
-                                onBackspace: {
-                                    handleDeleteSpecialBlock(id: item.id)
+                        Group {
+                            if item.isSpecial {
+                                SpecialBlockWrapper(
+                                    isSelected: selectedBlockID == item.id,
+                                    onTap: {
+                                        selectedBlockID = item.id
+                                        focusedBlockID = nil
+                                    },
+                                    onBackspace: {
+                                        handleDeleteSpecialBlock(id: item.id)
+                                    }
+                                ) {
+                                    BlockRenderer(block: item.block, allowsInteraction: false)
                                 }
-                            ) {
-                                BlockRenderer(block: item.block, allowsInteraction: false)
+                            } else {
+                                NativeTextView(
+                                    id: item.id,
+                                    text: $item.rawText,
+                                    focusedBlockID: $focusedBlockID,
+                                    cursorPosition: $cursorPosition,
+                                    onEditingEnded: { handleEditingEnded() },
+                                    onBackspaceAtStart: {
+                                        handleBackspaceAtStart(item: item)
+                                    },
+                                    onDeleteAtEnd: {
+                                        handleDeleteAtEnd(item: item)
+                                    }
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .simultaneousGesture(TapGesture().onEnded {
+                                    selectedBlockID = nil
+                                })
                             }
-                        } else {
-                            NativeTextView(
-                                id: item.id,
-                                text: $item.rawText,
-                                focusedBlockID: $focusedBlockID,
-                                cursorPosition: $cursorPosition,
-                                onEditingEnded: { handleEditingEnded() },
-                                onBackspaceAtStart: {
-                                    handleBackspaceAtStart(item: item)
-                                },
-                                onDeleteAtEnd: {
-                                    handleDeleteAtEnd(item: item)
-                                }
-                            )
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .simultaneousGesture(TapGesture().onEnded {
-                                selectedBlockID = nil
-                            })
                         }
+                        .transition(.asymmetric(
+                            insertion: .opacity
+                                .combined(with: .move(edge: .bottom))
+                                .animation(.spring(response: 0.35, dampingFraction: 0.75)),
+                            removal: .identity
+                        ))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -85,9 +93,13 @@ struct CreateTabView: View {
         }
         .onAppear {
             if let note = editingNote {
-                text = note.desc
-                blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
-                wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
+                if note.title == "ChatDraft_PendingExtraction" {
+                    extractChatNote(note)
+                } else {
+                    text = note.desc
+                    blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
+                    wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
+                }
             } else {
                 text = ""
                 blockItems = NoteBlockUtility.splitIntoBlockItems("")
@@ -96,9 +108,13 @@ struct CreateTabView: View {
         }
         .onChange(of: editingNote) { _, newValue in
             if let note = newValue {
-                text = note.desc
-                blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
-                wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
+                if note.title == "ChatDraft_PendingExtraction" {
+                    extractChatNote(note)
+                } else {
+                    text = note.desc
+                    blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
+                    wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
+                }
             } else {
                 text = ""
                 blockItems = NoteBlockUtility.splitIntoBlockItems("")
@@ -106,7 +122,7 @@ struct CreateTabView: View {
             }
         }
         .onChange(of: text) { _, newValue in
-            if isAnimatingText || isOrganizing {
+            if isOrganizing {
                 blockItems = NoteBlockUtility.splitIntoBlockItems(newValue)
             }
         }
@@ -197,6 +213,68 @@ extension CreateTabView {
         activeTab = .notes
     }
     
+    private func extractChatNote(_ note: SlateModel) {
+        let rawContent = note.desc
+        
+        animationTask?.cancel()
+        skeletonSessionID = UUID()
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isOrganizing = true
+            isAnimatingText = false
+            text = "" // Clear text immediately to display the skeleton loader
+            blockItems = NoteBlockUtility.splitIntoBlockItems("")
+        }
+        
+        Task {
+            var extractedTitle = ""
+            var extractedBody = ""
+            
+            do {
+                let client = OllamaClient()
+                let response = try await client.generate(
+                    prompt: rawContent,
+                    system: SystemPrompts.noteExtraction
+                )
+                
+                // Parse response
+                if let titleRange = response.range(of: "---TITLE---"),
+                   let bodyRange = response.range(of: "---BODY---") {
+                    let titleStart = titleRange.upperBound
+                    let titleEnd = bodyRange.lowerBound
+                    let parsedTitle = response[titleStart..<titleEnd].trimmingCharacters(in: .whitespacesAndNewlines)
+                    let parsedBody = response[bodyRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    if !parsedTitle.isEmpty && !parsedBody.isEmpty {
+                        extractedTitle = parsedTitle
+                        extractedBody = parsedBody
+                    }
+                }
+            } catch {
+                print("Ollama note extraction failed: \(error.localizedDescription)")
+            }
+            
+            // Fallback to heuristic parser if LLM extraction failed or returned empty
+            if extractedTitle.isEmpty || extractedBody.isEmpty {
+                let heuristic = NoteExtractionUtility.parseHeuristically(text: rawContent)
+                extractedTitle = heuristic.title
+                extractedBody = heuristic.body
+            }
+            
+            await MainActor.run {
+                // Update the model properties directly
+                note.title = extractedTitle
+                note.desc = extractedBody
+                
+                wasTitlePreGenerated = true
+                
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isOrganizing = false
+                }
+                animateBlocksOneByOne(extractedBody)
+            }
+        }
+    }
+    
     private func organizeNoteWithAI() {
         let trimmedDesc = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDesc.isEmpty {
@@ -227,7 +305,7 @@ extension CreateTabView {
                         withAnimation(.easeInOut(duration: 0.3)) {
                             isOrganizing = false
                         }
-                        animateTextLineByLine(cleanedText)
+                        animateBlocksOneByOne(cleanedText)
                     }
                 } else {
                     await MainActor.run {
@@ -333,31 +411,32 @@ extension CreateTabView {
         return textToParse
     }
     
-    private func animateTextLineByLine(_ fullText: String) {
+    private func animateBlocksOneByOne(_ fullText: String) {
         animationTask?.cancel()
-        text = ""
+        
+        let finalBlocks = NoteBlockUtility.splitIntoBlockItems(fullText)
+        
         withAnimation(.easeInOut(duration: 0.3)) {
             isAnimatingText = true
+            blockItems = []
+            text = ""
         }
         
-        let lines = fullText.components(separatedBy: "\n")
-        
         animationTask = Task { @MainActor in
-            for (index, line) in lines.enumerated() {
+            for blockItem in finalBlocks {
                 guard !Task.isCancelled else { break }
                 
-                withAnimation(.easeOut(duration: 0.12)) {
-                    if index == 0 {
-                        text = line
-                    } else {
-                        text += "\n" + line
-                    }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    blockItems.append(blockItem)
                 }
+                
+                // Keep the 'text' property in sync with the current combined blocks
+                text = NoteBlockUtility.combineBlockItems(blockItems)
                 
                 let generator = UISelectionFeedbackGenerator()
                 generator.selectionChanged()
                 
-                try? await Task.sleep(nanoseconds: 220_000_000)
+                try? await Task.sleep(nanoseconds: 120_000_000)
             }
             
             withAnimation(.easeInOut(duration: 0.3)) {

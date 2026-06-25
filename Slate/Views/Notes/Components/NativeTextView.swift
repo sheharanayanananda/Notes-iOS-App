@@ -648,11 +648,18 @@ struct NativeTextView: UIViewRepresentable {
                 let attachment = CheckboxAttachment(isChecked: false)
                 let attrString = NSMutableAttributedString(attachment: attachment)
                 var contentText = String(strippedLine.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
-                if contentText.hasPrefix("- ") || contentText.hasPrefix("* ") {
-                    contentText = String(contentText.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
-                } else if contentText.hasPrefix("-") || contentText.hasPrefix("*") {
-                    contentText = String(contentText.dropFirst(1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Strip redundant bullets/dashes if present (e.g. "- [ ] - text" or "- [ ] * text")
+                while true {
+                    let initial = contentText
+                    for prefix in ["- ", "– ", "— ", "* ", "• ", "-", "–", "—", "*", "•"] {
+                        if contentText.hasPrefix(prefix) {
+                            contentText = String(contentText.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    }
+                    if contentText == initial { break }
                 }
+                
                 let contentAttr = parseInlineMarkdown("  " + contentText, font: font)
                 attrString.append(contentAttr)
                 
@@ -664,11 +671,18 @@ struct NativeTextView: UIViewRepresentable {
                 let attachment = CheckboxAttachment(isChecked: true)
                 let attrString = NSMutableAttributedString(attachment: attachment)
                 var contentText = String(strippedLine.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
-                if contentText.hasPrefix("- ") || contentText.hasPrefix("* ") {
-                    contentText = String(contentText.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
-                } else if contentText.hasPrefix("-") || contentText.hasPrefix("*") {
-                    contentText = String(contentText.dropFirst(1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Strip redundant bullets/dashes if present (e.g. "- [x] - text" or "- [x] * text")
+                while true {
+                    let initial = contentText
+                    for prefix in ["- ", "– ", "— ", "* ", "• ", "-", "–", "—", "*", "•"] {
+                        if contentText.hasPrefix(prefix) {
+                            contentText = String(contentText.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    }
+                    if contentText == initial { break }
                 }
+                
                 let contentAttr = parseInlineMarkdown("  " + contentText, font: font)
                 
                 let mutableContent = NSMutableAttributedString(attributedString: contentAttr)

@@ -500,11 +500,9 @@ struct AddToNoteButton: View {
     
     var body: some View {
         Button(action: {
-            // Create an in-memory note (NOT inserted into the DB).
-            // Content arrives in CreateTabView exactly as-is — all formatting preserved.
-            // The user edits it and hits Save, which is when the DB insert and
-            // AI title generation both happen.
-            let draft = SlateModel(title: "", desc: text)
+            // Create an in-memory note (NOT inserted into the DB) with a placeholder title.
+            // CreateTabView will intercept this title onAppear/onChange and perform background Ollama extraction.
+            let draft = SlateModel(title: "ChatDraft_PendingExtraction", desc: text)
             
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
