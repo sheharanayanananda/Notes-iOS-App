@@ -2,7 +2,7 @@
 
 Slate V2 is the next-generation, commercial iteration of the Slate note-taking platform for iOS. Built with Swift and SwiftUI, V2 moves beyond static text editing to deliver a fully autonomous, context-aware AI agent ecosystem designed to manage, synthesize, and automate a user's personal knowledge base.
 
-The V2 codebase resides in this private repository (`sheharanayanananda/Slate-V2`), while the open-source V1 version remains publicly available on `main` at `sheharanayanananda/Slate`.
+The V2 codebase resides in the `v2` branch of this repository, while the V1 version remains available on the `main` branch.
 
 ---
 
@@ -64,10 +64,11 @@ Slate V2 uses a unified, modular architecture to separate App UI, persistence mo
 
 ## Getting Started
 
-1. **Clone the Private Repository**:
+1. **Clone the Repository and Switch to V2**:
    ```bash
-   git clone https://github.com/sheharanayanananda/Slate-V2.git
-   cd Slate-V2
+   git clone https://github.com/sheharanayanananda/Slate.git
+   cd Slate
+   git checkout v2
    ```
 
 2. **Open the Project**:
@@ -83,5 +84,5 @@ Slate V2 uses a unified, modular architecture to separate App UI, persistence mo
 
 ## License
 
-This project is proprietary and commercial. All rights reserved. Unauthorized copying, distribution, or commercial reuse of Slate V2, via any medium, is strictly prohibited. The code is private and confidential. Copyright © 2026 Thineth Shehara.
+This project is licensed under the **Slate Proprietary and Source-Available License**. See the [LICENSE](LICENSE) file for the full license text permitting personal, educational, and evaluation use (such as recruiter inspections) while prohibiting unauthorized commercial redistribution.
 
