@@ -1,18 +1,24 @@
-Slate V2 Proprietary and Commercial Closed-Source License
+Slate Proprietary and Source-Available License
 
 Copyright (c) 2026 Thineth Shehara. All rights reserved.
 
-This software and all associated source files (collectively, the "Software") are highly confidential and proprietary to Thineth Shehara. 
+This software and all associated source files (collectively, the "Software") are proprietary. Unauthorized copying, modification, redistribution, or commercial use of the Software, via any medium or platform, is strictly prohibited except as permitted below.
 
-Unauthorized downloading, copying, modification, distribution, sublicensing, reverse engineering, or commercial exploitation of this Software, in whole or in part, via any medium, platform, or network, is strictly prohibited.
+1. PERSONAL AND EDUCATIONAL USE LICENSE
+You are granted a non-exclusive, non-transferable, royalty-free license to download, run, inspect, and modify the Software solely for personal, educational, research, and non-commercial evaluation purposes (including inspections by prospective employers and recruiters). 
 
-No source-available, personal, educational, or evaluation license is granted for this version (Slate V2). All use, modifications, or redistribution rights are strictly reserved by the copyright owner.
+2. COMMERCIAL USE RESTRICTIONS
+You may not use the Software, or any derivative works thereof, for any commercial purpose without obtaining a separate, written Commercial License from the copyright owner. Commercial purposes include, but are not limited to:
+- Operating a business, commercial enterprise, or generating revenue using the Software.
+- Publishing, sublicensing, or distributing the Software on any public application store or marketplace (including the Apple App Store).
+- Integrating the Software into any closed-source, proprietary, or commercial product or service.
 
-For commercial licensing requests, enterprise deployments, or other authorization inquiries, please contact the copyright owner at:
+3. COMMERCIAL LICENSING INQUIRIES
+Businesses, enterprises, or developers wishing to obtain a license for commercial use, enterprise deployment, closed-source forks, or redistribution rights may contact the copyright owner to negotiate and purchase a Commercial License.
 
+Contact Channels:
 - Email: sheharanayanananda@gmail.com
 - LinkedIn: https://www.linkedin.com/in/thineth-nayanananda-54815b228/
 
----
-
+4. NO WARRANTY
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
