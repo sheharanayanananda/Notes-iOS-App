@@ -311,7 +311,7 @@ struct ListBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(items) { item in
-                HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     if item.level > 0 {
                         Spacer()
                             .frame(width: CGFloat(item.level) * 16)
@@ -321,6 +321,7 @@ struct ListBlockView: View {
                         Image(systemName: checkbox == .checked ? "checkmark.circle.fill" : "circle")
                             .foregroundColor(checkbox == .checked ? Color.blue : Color.secondary.opacity(0.6))
                             .font(.system(size: 20))
+                            .alignmentGuide(.firstTextBaseline) { d in d.height / 2 + 4.5 }
                     } else {
                         switch item.type {
                         case .bullet:
