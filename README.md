@@ -165,7 +165,7 @@ All functionality is implemented using **Apple system frameworks only**. There a
 
 - Xcode 16.0 or later
 - iOS 17.0 or later
-- [Ollama](https://ollama.ai) running locally or on a reachable server
+- Ollama Account & API Key (accessible via Ollama Cloud API; no local server setup required)
 - Camera & Photo Library permissions (for media attachments)
 
 ### Installation
@@ -184,14 +184,10 @@ open Slate.xcodeproj
 
 ### Configuration
 
-1. Start your Ollama server (default: `http://localhost:11434`).
-2. Pull a model — for best results:
-   ```bash
-   ollama pull gemma4:31b
-   ```
-3. Build and run on your device (`⌘ + R`).
-4. Open **Settings** in the app and enter your Ollama API key.
-5. The key is validated live against your server.
+1. Build and run on your device or simulator (`⌘ + R`).
+2. Sign in to your Ollama account, navigate to your profile keys section, and create a new API key.
+3. Open **Settings** inside the Slate app and input your Ollama API key.
+4. The key is validated live and saved securely to the Apple Keychain.
 
 > The app defaults to model `gemma4:31b` from `UserDefaults`. This can be changed programmatically via the `ollama_model_name` key.
 
