@@ -506,6 +506,35 @@ struct NativeTextView: UIViewRepresentable {
             }
         }
         
+        // Parse and format markdown links: [link text](url)
+        let linkRegex = try! NSRegularExpression(pattern: #"\[([^\]]+)\]\((https?://[^\)]+)\)"#, options: [])
+        var linkMatchFound = true
+        while linkMatchFound {
+            let range = NSRange(location: 0, length: attrString.length)
+            if let match = linkRegex.firstMatch(in: attrString.string, options: [], range: range) {
+                let tagRange = match.range(at: 0)
+                let textRange = match.range(at: 1)
+                let urlRange = match.range(at: 2)
+                
+                let linkText = (attrString.string as NSString).substring(with: textRange)
+                let urlString = (attrString.string as NSString).substring(with: urlRange)
+                
+                let mutableContent = NSMutableAttributedString(string: linkText)
+                let newRange = NSRange(location: 0, length: mutableContent.length)
+                
+                mutableContent.addAttributes([.font: font], range: newRange)
+                
+                if let url = URL(string: urlString) {
+                    mutableContent.addAttribute(.link, value: url, range: newRange)
+                    mutableContent.addAttribute(.foregroundColor, value: UIColor.systemBlue, range: newRange)
+                }
+                
+                attrString.replaceCharacters(in: tagRange, with: mutableContent)
+            } else {
+                linkMatchFound = false
+            }
+        }
+        
         return attrString
     }
     
@@ -660,11 +689,12 @@ struct NativeTextView: UIViewRepresentable {
                     if contentText == initial { break }
                 }
                 
-                let contentAttr = parseInlineMarkdown("  " + contentText, font: font)
+                let contentAttr = parseInlineMarkdown(contentText, font: font)
+                let spaceAttr = NSAttributedString(string: "  ", attributes: [.font: font, .foregroundColor: UIColor.label])
+                attrString.append(spaceAttr)
                 attrString.append(contentAttr)
                 
                 attrString.addAttribute(.paragraphStyle, value: checklistParagraphStyle, range: NSRange(location: 0, length: attrString.length))
-                attrString.addAttributes([.font: font, .foregroundColor: UIColor.label], range: NSRange(location: 0, length: 2))
                 
                 result.append(attrString)
             } else if strippedLine.hasPrefix("- [x] ") {
@@ -683,17 +713,18 @@ struct NativeTextView: UIViewRepresentable {
                     if contentText == initial { break }
                 }
                 
-                let contentAttr = parseInlineMarkdown("  " + contentText, font: font)
+                let contentAttr = parseInlineMarkdown(contentText, font: font)
+                let spaceAttr = NSAttributedString(string: "  ", attributes: [.font: font, .foregroundColor: UIColor.label])
                 
                 let mutableContent = NSMutableAttributedString(attributedString: contentAttr)
                 let textRange = NSRange(location: 0, length: mutableContent.length)
                 mutableContent.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: textRange)
                 mutableContent.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: textRange)
                 
+                attrString.append(spaceAttr)
                 attrString.append(mutableContent)
                 
                 attrString.addAttribute(.paragraphStyle, value: checklistParagraphStyle, range: NSRange(location: 0, length: attrString.length))
-                attrString.addAttributes([.font: font, .foregroundColor: UIColor.label], range: NSRange(location: 0, length: 2))
                 
                 result.append(attrString)
             } else if strippedLine.hasPrefix("- ") || strippedLine.hasPrefix("• ") {
@@ -749,7 +780,7 @@ struct NativeTextView: UIViewRepresentable {
         
         attributed.enumerateAttributes(in: NSRange(location: 0, length: attributed.length), options: []) { attrs, range, _ in
             if let attachment = attrs[.attachment] as? CheckboxAttachment {
-                result += attachment.isChecked ? "- [x]" : "- [ ]"
+                result += attachment.isChecked ? "- [x] " : "- [ ] "
             } else {
                 let substring = string.substring(with: range)
                 let cleaned = substring.replacingOccurrences(of: "\u{FFFC}", with: "")
@@ -906,7 +937,14 @@ struct NativeTextView: UIViewRepresentable {
             
             if expandedRect.contains(adjustedLocation) {
                 if let attachment = textView.textStorage.attribute(NSAttributedString.Key.attachment, at: characterIndex, effectiveRange: nil) as? CheckboxAttachment {
-                    toggleCheckbox(at: characterIndex, in: textView, currentAttachment: attachment)
+                    // Defer mutation to the next runloop turn to prevent layout-pass / gesture conflict crashes
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self, let currentTextView = self.textView else { return }
+                        // Re-verify the index is still safe to avoid race conditions
+                        if characterIndex < currentTextView.textStorage.length {
+                            self.toggleCheckbox(at: characterIndex, in: currentTextView, currentAttachment: attachment)
+                        }
+                    }
                 }
             }
         }
@@ -915,35 +953,45 @@ struct NativeTextView: UIViewRepresentable {
             let isChecked = !currentAttachment.isChecked
             let newAttachment = CheckboxAttachment(isChecked: isChecked)
             
-            let attrString = NSMutableAttributedString(attributedString: textView.attributedText)
-            guard index < attrString.length else { return }
-            attrString.removeAttribute(.attachment, range: NSRange(location: index, length: 1))
-            attrString.addAttribute(.attachment, value: newAttachment, range: NSRange(location: index, length: 1))
+            // Perform in-place mutation of textStorage to preserve TextKit 2 document locations
+            textView.textStorage.beginEditing()
             
-            let nsString = attrString.string as NSString
+            textView.textStorage.removeAttribute(.attachment, range: NSRange(location: index, length: 1))
+            textView.textStorage.addAttribute(.attachment, value: newAttachment, range: NSRange(location: index, length: 1))
+            
+            let nsString = textView.textStorage.string as NSString
             let lineRange = nsString.lineRange(for: NSRange(location: index, length: 1))
             
-            if lineRange.length > 2 {
-                let startPos = index + 2
-                let endPos = lineRange.location + lineRange.length
-                if startPos < endPos && endPos <= attrString.length {
+            if lineRange.length > 3 {
+                let startPos = index + 3
+                var endPos = lineRange.location + lineRange.length
+                
+                // Trim trailing newline to avoid applying strikethrough to the newline char
+                if endPos > 0 && endPos <= textView.textStorage.length {
+                    let lastChar = nsString.character(at: endPos - 1)
+                    if lastChar == unichar(10) { // '\n' ASCII is 10
+                        endPos -= 1
+                    }
+                }
+                
+                if startPos < endPos && endPos <= textView.textStorage.length {
                     let textRange = NSRange(location: startPos, length: endPos - startPos)
                     if isChecked {
-                        attrString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: textRange)
-                        attrString.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: textRange)
+                        textView.textStorage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: textRange)
+                        textView.textStorage.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: textRange)
                     } else {
-                        attrString.removeAttribute(.strikethroughStyle, range: textRange)
-                        attrString.addAttribute(.foregroundColor, value: UIColor.label, range: textRange)
+                        textView.textStorage.removeAttribute(.strikethroughStyle, range: textRange)
+                        textView.textStorage.addAttribute(.foregroundColor, value: UIColor.label, range: textRange)
                     }
                 }
             }
             
-            isUpdating = true
-            let selectedRange = textView.selectedRange
-            textView.attributedText = attrString
-            textView.selectedRange = selectedRange
+            textView.textStorage.endEditing()
             
-            let newText = NativeTextView.serializeToString(attributed: attrString)
+            // Serialize the updated content safely
+            let newText = NativeTextView.serializeToString(attributed: textView.textStorage)
+            
+            isUpdating = true
             self.lastParsedText = newText
             parent.text = newText
             isUpdating = false
