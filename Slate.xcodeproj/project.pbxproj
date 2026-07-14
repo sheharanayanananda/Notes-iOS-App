@@ -6,9 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-/* End PBXBuildFile section */
-
 /* Begin PBXContainerItemProxy section */
 		E852132F2F37677700E5E429 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -35,22 +32,16 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E85213232F37677500E5E429 /* Slate */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = Slate;
 			sourceTree = "<group>";
 		};
 		E85213312F37677700E5E429 /* SlateTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = SlateTests;
 			sourceTree = "<group>";
 		};
 		E852133B2F37677700E5E429 /* SlateUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = SlateUITests;
 			sourceTree = "<group>";
 		};
@@ -607,12 +598,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E85213192F37677500E5E429 /* Project object */;
 }

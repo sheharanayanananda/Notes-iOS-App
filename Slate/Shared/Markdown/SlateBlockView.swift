@@ -45,6 +45,14 @@ func slateAttributedString(_ raw: String) -> AttributedString {
     return attrStr
 }
 
+func containsRichLaTeX(_ text: String) -> Bool {
+    guard text.contains("$") else { return false }
+    // A block of text containing '$' has math. If it also contains backslashes '\'
+    // or subscripts/superscripts like '_', '^', it's a real LaTeX expression which
+    // must be rendered by KaTeX. Simple single-letter variables can be handled by AttributedString.
+    return text.contains("\\") || text.contains("_") || text.contains("^")
+}
+
 // MARK: - Individual Block Views
 
 // ── Heading ────────────────────────────────────────────────────────────────
@@ -88,7 +96,7 @@ struct SlateParagraphView: View {
     let text: String
 
     var body: some View {
-        if text.contains("$") {
+        if containsRichLaTeX(text) {
             LaTeXMathView(equation: text, isDisplay: false)
         } else {
             Text(slateAttributedString(text))
@@ -114,7 +122,7 @@ struct SlateChecklistView: View {
                         .foregroundStyle(item.checked ? Color.blue : Color.secondary.opacity(0.55))
                         .padding(.top, 1)
 
-                    if item.text.contains("$") {
+                    if containsRichLaTeX(item.text) {
                         LaTeXMathView(equation: item.text, isDisplay: false)
                     } else {
                         Text(slateAttributedString(item.text))
@@ -144,7 +152,7 @@ struct SlateBulletListView: View {
                         .foregroundStyle(.secondary)
                         .padding(.top, 0)
 
-                    if item.text.contains("$") {
+                    if containsRichLaTeX(item.text) {
                         LaTeXMathView(equation: item.text, isDisplay: false)
                     } else {
                         Text(slateAttributedString(item.text))
@@ -173,7 +181,7 @@ struct SlateNumberedListView: View {
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
 
-                    if item.text.contains("$") {
+                    if containsRichLaTeX(item.text) {
                         LaTeXMathView(equation: item.text, isDisplay: false)
                     } else {
                         Text(slateAttributedString(item.text))
@@ -184,6 +192,94 @@ struct SlateNumberedListView: View {
                 }
             }
         }
+    }
+}
+
+// ── Code Block ─────────────────────────────────────────────────────────────
+
+// MARK: - Native Syntax Highlighter
+
+struct SyntaxHighlighter {
+    static func highlight(_ code: String, language: String?) -> AttributedString {
+        let nsAttr = NSMutableAttributedString(string: code)
+        let fullRange = NSRange(location: 0, length: code.utf16.count)
+        
+        nsAttr.addAttribute(.font, value: UIFont.monospacedSystemFont(ofSize: 13, weight: .regular), range: fullRange)
+        nsAttr.addAttribute(.foregroundColor, value: UIColor.label, range: fullRange)
+        
+        guard let lang = language?.lowercased(), !lang.isEmpty else {
+            return AttributedString(nsAttr)
+        }
+        
+        let keywords = [
+            "func", "function", "fn", "def", "let", "var", "const", "struct", "class", "enum", "protocol",
+            "if", "else", "switch", "case", "default", "for", "while", "in", "return", "import", "pub", "use",
+            "impl", "mut", "self", "Self", "static", "true", "false", "nil", "null", "break", "continue",
+            "try", "catch", "throw", "throws", "async", "await", "guard", "defer", "typealias", "associatedtype",
+            "and", "or", "not", "elif", "as", "is", "where"
+        ]
+        
+        let typePattern = #"\b[A-Z][a-zA-Z0-9_]*\b"#
+        let commentPattern = #"//.*|/\*[\s\S]*?\*/"#
+        let stringPattern = #"\"(\\.|[^\"])*\"|\'(\\.|[^\'])*\'"#
+        let numberPattern = #"\b\d+(\.\d+)?\b"#
+        let keywordPattern = "\\b(" + keywords.joined(separator: "|") + ")\\b"
+        
+        let numberRegex = try? NSRegularExpression(pattern: numberPattern, options: [])
+        let typeRegex = try? NSRegularExpression(pattern: typePattern, options: [])
+        let keywordRegex = try? NSRegularExpression(pattern: keywordPattern, options: [])
+        let stringRegex = try? NSRegularExpression(pattern: stringPattern, options: [])
+        let commentRegex = try? NSRegularExpression(pattern: commentPattern, options: [])
+        
+        let keywordColor = UIColor.systemOrange
+        let typeColor = UIColor.systemTeal
+        let stringColor = UIColor.systemGreen
+        let commentColor = UIColor.secondaryLabel
+        let numberColor = UIColor.systemPurple
+        
+        numberRegex?.enumerateMatches(in: code, options: [], range: fullRange) { match, _, _ in
+            if let range = match?.range {
+                nsAttr.addAttribute(.foregroundColor, value: numberColor, range: range)
+            }
+        }
+        
+        typeRegex?.enumerateMatches(in: code, options: [], range: fullRange) { match, _, _ in
+            if let range = match?.range {
+                nsAttr.addAttribute(.foregroundColor, value: typeColor, range: range)
+            }
+        }
+        
+        keywordRegex?.enumerateMatches(in: code, options: [], range: fullRange) { match, _, _ in
+            if let range = match?.range {
+                nsAttr.addAttribute(.foregroundColor, value: keywordColor, range: range)
+            }
+        }
+        
+        stringRegex?.enumerateMatches(in: code, options: [], range: fullRange) { match, _, _ in
+            if let range = match?.range {
+                nsAttr.addAttribute(.foregroundColor, value: stringColor, range: range)
+            }
+        }
+        
+        commentRegex?.enumerateMatches(in: code, options: [], range: fullRange) { match, _, _ in
+            if let range = match?.range {
+                nsAttr.addAttribute(.foregroundColor, value: commentColor, range: range)
+                if let italicFont = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular).italic() {
+                    nsAttr.addAttribute(.font, value: italicFont, range: range)
+                }
+            }
+        }
+        
+        return AttributedString(nsAttr)
+    }
+}
+
+extension UIFont {
+    func italic() -> UIFont? {
+        if let desc = fontDescriptor.withSymbolicTraits(.traitItalic) {
+            return UIFont(descriptor: desc, size: 0)
+        }
+        return nil
     }
 }
 
@@ -232,9 +328,7 @@ struct SlateCodeBlockView: View {
                 .padding(.vertical, 8)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    Text(code)
-                        .font(.system(.footnote, design: .monospaced))
-                        .foregroundStyle(.primary)
+                    Text(SyntaxHighlighter.highlight(code, language: language))
                         .lineSpacing(4)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
@@ -309,7 +403,7 @@ struct SlateAlertCardView: View {
                     }
 
                     if !bodyText.isEmpty {
-                        if bodyText.contains("$") {
+                        if containsRichLaTeX(bodyText) {
                             LaTeXMathView(equation: bodyText, isDisplay: false)
                                 .padding(.vertical, 2)
                         } else {
@@ -351,7 +445,7 @@ struct SlateTableView: View {
                 HStack(spacing: 0) {
                     ForEach(Array(headers.enumerated()), id: \.offset) { colIndex, header in
                         Group {
-                            if header.contains("$") {
+                            if containsRichLaTeX(header) {
                                 LaTeXMathView(equation: header, isDisplay: false)
                                     .padding(.vertical, 4)
                             } else {
@@ -380,7 +474,7 @@ struct SlateTableView: View {
                     HStack(spacing: 0) {
                         ForEach(Array(row.enumerated()), id: \.offset) { colIndex, cell in
                             Group {
-                                if cell.contains("$") {
+                                if containsRichLaTeX(cell) {
                                     LaTeXMathView(equation: cell, isDisplay: false)
                                         .padding(.vertical, 4)
                                 } else {

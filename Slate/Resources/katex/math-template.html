@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="katex.min.css">
+  <script src="katex.min.js"></script>
+  <script src="auto-render.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 2px 4px;
+      background-color: transparent;
+      font-size: 16px;
+      line-height: 1.4;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    .math-container {
+      word-wrap: break-word;
+      white-space: normal;
+    }
+    .math-container.display-mode {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: auto;
+      white-space: nowrap;
+      padding: 6px 0;
+    }
+    /* Style KaTeX display mode scrollbars */
+    .katex-display {
+      margin: 0 !important;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="content" class="math-container"></div>
+  <script>
+    function renderContent(rawContent, isDisplay, colorHex) {
+      document.body.style.color = colorHex;
+      const el = document.getElementById('content');
+      
+      if (isDisplay) {
+        el.className = "math-container display-mode";
+        if (rawContent.includes('\\[') || rawContent.includes('$$')) {
+          el.innerHTML = rawContent;
+          renderMathInElement(el, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '\\[', right: '\\]', display: true },
+              { left: '$', right: '$', display: false },
+              { left: '\\(', right: '\\)', display: false }
+            ],
+            throwOnError: false
+          });
+        } else {
+          katex.render(rawContent, el, {
+            displayMode: true,
+            throwOnError: false,
+            trust: true,
+            strict: false
+          });
+        }
+      } else {
+        el.className = "math-container";
+        el.innerHTML = rawContent;
+        renderMathInElement(el, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '\\[', right: '\\]', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false }
+          ],
+          throwOnError: false
+        });
+      }
+      
+      // Notify parent view of the computed document height
+      setTimeout(sendHeight, 40);
+    }
+    
+    function sendHeight() {
+      const height = document.documentElement.scrollHeight || document.body.scrollHeight;
+      window.webkit.messageHandlers.sizeTracker.postMessage(height);
+    }
+  </script>
+</body>
+</html>

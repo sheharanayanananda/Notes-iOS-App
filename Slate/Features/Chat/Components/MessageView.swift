@@ -122,131 +122,50 @@ struct LaTeXWebViewRepresentable: UIViewRepresentable {
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.showsHorizontalScrollIndicator = false
         webView.scrollView.showsVerticalScrollIndicator = false
+        
+        // Load the local HTML template file
+        if let templateURL = Bundle.main.url(forResource: "math-template", withExtension: "html") {
+            webView.loadFileURL(templateURL, allowingReadAccessTo: templateURL.deletingLastPathComponent())
+        }
         return webView
-    }
-
-    private func prepareMathHTML(_ input: String) -> String {
-        var escaped = input
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-        
-        // Replace display math $$...$$ with \\[...\\]
-        let displayPattern = #"\$\$(.+?)\$\$"#
-        if let displayRegex = try? NSRegularExpression(pattern: displayPattern, options: [.dotMatchesLineSeparators]) {
-            let range = NSRange(escaped.startIndex..., in: escaped)
-            escaped = displayRegex.stringByReplacingMatches(in: escaped, options: [], range: range, withTemplate: "\\\\[$1\\\\]")
-        }
-        
-        // Replace inline math $...$ with \\(...\\)
-        let inlinePattern = #"(?<!\$)\$(?!\s)(.+?)(?<!\s)\$(?!\$)"#
-        if let inlineRegex = try? NSRegularExpression(pattern: inlinePattern, options: []) {
-            let range = NSRange(escaped.startIndex..., in: escaped)
-            escaped = inlineRegex.stringByReplacingMatches(in: escaped, options: [], range: range, withTemplate: "\\\\($1\\\\)")
-        }
-        
-        return escaped
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {
         context.coordinator.parent = self
         let colorHex = colorScheme == .dark ? "#FFFFFF" : "#000000"
         
-        let wrappedEquation: String
-        if equation.contains("$") {
-            wrappedEquation = prepareMathHTML(equation)
-        } else {
-            let escaped = equation
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "'", with: "\\'")
-            wrappedEquation = isDisplay ? "\\[\(escaped)\\]" : "\\(\(escaped)\\)"
+        // Clean/escape the equation for JS single-quoted string safety
+        let escapedEquation = equation
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "")
+        
+        let renderBlock = {
+            let js = "renderContent('\(escapedEquation)', \(isDisplay ? "true" : "false"), '\(colorHex)')"
+            uiView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        let containerCSS = isDisplay ? """
-            .math-container {
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              overflow-x: auto;
-              white-space: nowrap;
-            }
-        """ : """
-            .math-container {
-              display: block;
-              overflow-x: auto;
-              white-space: normal;
-              word-wrap: break-word;
-              line-height: 1.4;
-            }
-        """
-        
-        let htmlString = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-          <style>
-            body {
-              font-family: -apple-system, sans-serif;
-              margin: 0;
-              padding: 4px;
-              background-color: transparent;
-              color: \(colorHex);
-              font-size: 16px;
-            }
-            \(containerCSS)
-          </style>
-          <script>
-            window.MathJax = {
-              startup: {
-                pageReady: () => {
-                  return MathJax.startup.defaultPageReady().then(() => {
-                    setTimeout(sendHeight, 100);
-                  });
-                }
-              },
-              tex: {
-                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
-                displayMath: [['$$', '$$'], ['\\\\[', \\\\]']]
-              }
-            };
-            
-            function sendHeight() {
-              let height = document.documentElement.scrollHeight || document.body.scrollHeight;
-              window.webkit.messageHandlers.sizeTracker.postMessage(height);
-            }
-          </script>
-          <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-        </head>
-        <body>
-          <div class="math-container">
-            \(wrappedEquation)
-          </div>
-        </body>
-        </html>
-        """
-        
-        if context.coordinator.lastLoadedHTML != htmlString {
-            context.coordinator.lastLoadedHTML = htmlString
-            uiView.loadHTMLString(htmlString, baseURL: nil)
+        if context.coordinator.isPageLoaded {
+            renderBlock()
+        } else {
+            context.coordinator.pendingRender = renderBlock
         }
     }
 
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: LaTeXWebViewRepresentable
-        var lastLoadedHTML: String?
+        var isPageLoaded = false
+        var pendingRender: (() -> Void)?
 
         init(_ parent: LaTeXWebViewRepresentable) {
             self.parent = parent
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            webView.evaluateJavaScript("document.documentElement.scrollHeight || document.body.scrollHeight") { (result, error) in
-                if let height = result as? CGFloat {
-                    DispatchQueue.main.async {
-                        self.parent.height = max(height, 20)
-                    }
-                }
-            }
+            isPageLoaded = true
+            pendingRender?()
+            pendingRender = nil
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
