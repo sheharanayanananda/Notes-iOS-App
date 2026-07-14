@@ -321,50 +321,54 @@ struct SlateTableView: View {
     let rows: [[String]]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header row
-            HStack(spacing: 0) {
-                ForEach(Array(headers.enumerated()), id: \.offset) { _, header in
-                    Text(header)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if header != headers.last {
-                        Divider()
-                            .frame(maxHeight: 36)
-                    }
-                }
-            }
-            .background(Color.primary.opacity(0.06))
-
-            Divider()
-
-            // Data rows
-            ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
+        let columnWidth = max(110, (UIScreen.main.bounds.width - 32) / CGFloat(headers.count))
+        
+        ScrollView(.horizontal, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header row
                 HStack(spacing: 0) {
-                    ForEach(Array(row.enumerated()), id: \.offset) { colIndex, cell in
-                        Text(slateAttributedString(cell))
+                    ForEach(Array(headers.enumerated()), id: \.offset) { colIndex, header in
+                        Text(header)
                             .font(.subheadline)
-                            .lineSpacing(3)
+                            .fontWeight(.semibold)
                             .foregroundStyle(.primary)
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 9)
+                            .frame(width: columnWidth, alignment: .leading)
 
-                        if colIndex < row.count - 1 {
+                        if colIndex < headers.count - 1 {
                             Divider()
                                 .frame(maxHeight: 36)
                         }
                     }
                 }
-                .background(rowIndex % 2 == 0 ? Color.clear : Color.primary.opacity(0.02))
+                .background(Color.primary.opacity(0.06))
 
-                if rowIndex < rows.count - 1 {
-                    Divider()
+                Divider()
+
+                // Data rows
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
+                    HStack(spacing: 0) {
+                        ForEach(Array(row.enumerated()), id: \.offset) { colIndex, cell in
+                            Text(slateAttributedString(cell))
+                                .font(.subheadline)
+                                .lineSpacing(3)
+                                .foregroundStyle(.primary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .frame(width: columnWidth, alignment: .leading)
+
+                            if colIndex < row.count - 1 {
+                                Divider()
+                                    .frame(maxHeight: 36)
+                            }
+                        }
+                    }
+                    .background(rowIndex % 2 == 0 ? Color.clear : Color.primary.opacity(0.02))
+
+                    if rowIndex < rows.count - 1 {
+                        Divider()
+                    }
                 }
             }
         }
