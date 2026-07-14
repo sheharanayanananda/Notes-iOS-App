@@ -18,8 +18,7 @@ struct ChatCapsule: View {
     @State private var showDocumentPicker = false
     @State private var showDocumentScanner = false
     @State private var showScannerUnsupportedAlert = false
-    
-    
+
     @Environment(\.colorScheme) private var colorScheme
     @Binding var text: String
     @Binding var selectedImages: [UIImage]
@@ -28,30 +27,60 @@ struct ChatCapsule: View {
     var isTextFieldDisabled: Bool
     var isInputFocused: FocusState<Bool>.Binding
     var onSend: () -> Void
-    
-    private var isMultiline: Bool {
-        text.contains("\n") || text.count > 36 || !selectedImages.isEmpty || !selectedDocuments.isEmpty
+
+    @State private var isMultiline: Bool = false
+    @State private var containerWidth: CGFloat = 0
+
+    private var hasAttachments: Bool {
+        !selectedImages.isEmpty || !selectedDocuments.isEmpty
     }
-    
+
     private var currentCornerRadius: CGFloat {
         isMultiline ? 33 : 35
     }
-    
+
+    private func updateMultilineState() {
+        if hasAttachments {
+            isMultiline = true
+            return
+        }
+        if text.contains("\n") {
+            isMultiline = true
+            return
+        }
+        guard containerWidth > 0 else { return }
+        
+        let font = UIFont.systemFont(ofSize: 16)
+        let textWidth = (text as NSString).size(withAttributes: [.font: font]).width
+        
+        // Total horizontal padding inside container is 16 * 2 = 32
+        // Internal spacing of HStack is 12 * 2 = 24
+        // plusButton frame width = 36
+        // sendButton frame width = 36
+        // Total constant non-text width = 32 + 24 + 36 + 36 = 128
+        let available = containerWidth - 128
+        
+        if !isMultiline && textWidth > available - 4 {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                isMultiline = true
+            }
+        } else if isMultiline && textWidth < available - 12 {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                isMultiline = false
+            }
+        }
+    }
+
     // MARK: - UI Components
+
     private var plusButton: some View {
         Menu {
-            Button(action: {
-                showPhotoPicker = true
-            }) {
+            Button(action: { showPhotoPicker = true }) {
                 Label("Photos", systemImage: "photo.on.rectangle")
             }
-            
-            Button(action: {
-                showCamera = true
-            }) {
+            Button(action: { showCamera = true }) {
                 Label("Camera", systemImage: "camera")
             }
-            
             Button(action: {
                 if VNDocumentCameraViewController.isSupported {
                     showDocumentScanner = true
@@ -61,10 +90,7 @@ struct ChatCapsule: View {
             }) {
                 Label("Scan Document", systemImage: "doc.viewfinder")
             }
-            
-            Button(action: {
-                showDocumentPicker = true
-            }) {
+            Button(action: { showDocumentPicker = true }) {
                 Label("Documents", systemImage: "doc.text")
             }
         } label: {
@@ -75,45 +101,35 @@ struct ChatCapsule: View {
                 .contentShape(Rectangle())
         }
     }
-    
-    private var micButton: some View {
-        Button(action: {
-            // Microphone Action
-        }) {
-            Image(systemName: "mic")
-                .font(.system(size: 20))
-                .foregroundColor(.primary)
-                .frame(width: 36, height: 36)
-                .contentShape(Circle())
-        }
-        .disabled(isGenerating)
-        .opacity(isGenerating ? 0.5 : 1.0)
-        .animation(.easeInOut(duration: 0.3), value: isGenerating)
-    }
-    
+
     private var sendButton: some View {
-        Button(action: {
-            onSend()
-        }) {
+        Button(action: { onSend() }) {
             Image(systemName: "arrow.up")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(colorScheme == .dark ? .black : .white)
                 .frame(width: 36, height: 36)
-                .background(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating ? Color.primary.opacity(0.3) : Color.primary)
+                .background(
+                    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating
+                        ? Color.primary.opacity(0.3)
+                        : Color.primary
+                )
                 .clipShape(Circle())
         }
         .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
         .animation(.easeInOut(duration: 0.3), value: isGenerating)
     }
-    
-    // MARK: - UI Code
+
+    // MARK: - Body
+
     var body: some View {
         VStack(alignment: .leading, spacing: isMultiline ? 12 : 0) {
-            // 1. Attachment Previews Area (Images & Documents)
-            if !selectedImages.isEmpty || !selectedDocuments.isEmpty {
+
+            // MARK: Attachment Previews
+            if hasAttachments {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        // Render Images
+
+                        // Images
                         ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, uiImage in
                             ZStack(alignment: .topTrailing) {
                                 Image(uiImage: uiImage)
@@ -125,7 +141,7 @@ struct ChatCapsule: View {
                                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                                             .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                                     )
-                                
+
                                 Button(action: {
                                     withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                                         selectedImages.remove(at: index)
@@ -144,15 +160,15 @@ struct ChatCapsule: View {
                             .padding(.top, 6)
                             .padding(.trailing, 6)
                         }
-                        
-                        // Render Documents
+
+                        // Documents
                         ForEach(selectedDocuments) { doc in
                             ZStack(alignment: .topTrailing) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Image(systemName: "doc.text.fill")
                                         .font(.system(size: 24))
                                         .foregroundColor(.secondary)
-                                    
+
                                     Text(doc.name)
                                         .font(.system(size: 11, weight: .medium))
                                         .foregroundColor(.primary)
@@ -168,7 +184,7 @@ struct ChatCapsule: View {
                                                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                                         )
                                 )
-                                
+
                                 Button(action: {
                                     withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                                         if let idx = selectedDocuments.firstIndex(of: doc) {
@@ -191,13 +207,13 @@ struct ChatCapsule: View {
                 }
                 .padding(.bottom, 8)
             }
-            
-            // 2. Main Row (Textfield & Inline buttons in single-line mode)
+
+            // MARK: Input Row
             HStack(alignment: .bottom, spacing: 12) {
                 if !isMultiline {
                     plusButton
                 }
-                
+
                 TextField("Ask Slate", text: $text, axis: .vertical)
                     .font(.system(size: 16))
                     .lineSpacing(5)
@@ -207,16 +223,14 @@ struct ChatCapsule: View {
                     .opacity(isGenerating ? 0.6 : 1.0)
                     .lineLimit(1...6)
                     .frame(minHeight: 36)
-                    .onSubmit {
-                        onSend()
-                    }
-                
+                    .onSubmit { onSend() }
+
                 if !isMultiline {
                     sendButton
                 }
             }
-            
-            // 3. Multi-line Action Row (Plus and Send slide down below)
+
+            // MARK: Multi-line Action Row
             if isMultiline {
                 HStack(spacing: 12) {
                     plusButton
@@ -236,9 +250,33 @@ struct ChatCapsule: View {
                     isInputFocused.wrappedValue = true
                 }
         )
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                        containerWidth = geo.size.width
+                        updateMultilineState()
+                    }
+                    .onChange(of: geo.size.width) { _, newWidth in
+                        containerWidth = newWidth
+                        updateMultilineState()
+                    }
+            }
+        )
+        .onChange(of: text) { _, _ in
+            updateMultilineState()
+        }
+        .onChange(of: selectedImages) { _, _ in
+            updateMultilineState()
+        }
+        .onChange(of: selectedDocuments) { _, _ in
+            updateMultilineState()
+        }
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isMultiline)
         .padding(.horizontal, 21)
         .padding(.bottom, 4)
+
+        // MARK: - Sheet / Picker Modifiers
         .photosPicker(
             isPresented: $showPhotoPicker,
             selection: $selectedItems,
@@ -297,37 +335,33 @@ struct ChatCapsule: View {
             case .success(let urls):
                 for url in urls {
                     guard url.startAccessingSecurityScopedResource() else { continue }
-                    
+
                     let coordinator = NSFileCoordinator()
                     var error: NSError?
-                    
+
                     coordinator.coordinate(readingItemAt: url, options: [], error: &error) { coordinatedURL in
                         let name = coordinatedURL.lastPathComponent
                         let ext = coordinatedURL.pathExtension.lowercased()
-                        
+
                         guard let fileData = try? Data(contentsOf: coordinatedURL) else {
                             print("Failed to read file data synchronously")
                             return
                         }
-                        
+
                         Task {
                             if ext == "pdf" {
                                 var needsVisual = false
                                 if let textContent = DocumentParser.extractTextFromPDF(data: fileData, onNeedsVisualRendering: { needsVisual = true }) {
                                     let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
                                     await MainActor.run {
-                                        withAnimation {
-                                            selectedDocuments.append(attachment)
-                                        }
+                                        withAnimation { selectedDocuments.append(attachment) }
                                     }
                                 } else if needsVisual {
                                     let rendered = DocumentParser.renderPDFPagesToImages(data: fileData)
                                     await MainActor.run {
                                         withAnimation {
                                             for img in rendered {
-                                                if selectedImages.count < 10 {
-                                                    selectedImages.append(img)
-                                                }
+                                                if selectedImages.count < 10 { selectedImages.append(img) }
                                             }
                                         }
                                     }
@@ -336,49 +370,39 @@ struct ChatCapsule: View {
                                 if let textContent = DocumentParser.extractTextFromDocx(data: fileData) {
                                     let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
                                     await MainActor.run {
-                                        withAnimation {
-                                            selectedDocuments.append(attachment)
-                                        }
+                                        withAnimation { selectedDocuments.append(attachment) }
                                     }
                                 }
                             } else if ext == "xlsx" {
                                 if let textContent = DocumentParser.extractTextFromXlsx(data: fileData) {
                                     let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
                                     await MainActor.run {
-                                        withAnimation {
-                                            selectedDocuments.append(attachment)
-                                        }
+                                        withAnimation { selectedDocuments.append(attachment) }
                                     }
                                 }
                             } else if ext == "rtf" {
                                 if let textContent = DocumentParser.extractTextFromRTF(data: fileData) {
                                     let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
                                     await MainActor.run {
-                                        withAnimation {
-                                            selectedDocuments.append(attachment)
-                                        }
+                                        withAnimation { selectedDocuments.append(attachment) }
                                     }
                                 }
                             } else {
                                 if let textContent = String(data: fileData, encoding: .utf8) {
                                     let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
                                     await MainActor.run {
-                                        withAnimation {
-                                            selectedDocuments.append(attachment)
-                                        }
+                                        withAnimation { selectedDocuments.append(attachment) }
                                     }
                                 } else if let textContent = String(data: fileData, encoding: .ascii) {
                                     let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
                                     await MainActor.run {
-                                        withAnimation {
-                                            selectedDocuments.append(attachment)
-                                        }
+                                        withAnimation { selectedDocuments.append(attachment) }
                                     }
                                 }
                             }
                         }
                     }
-                    
+
                     url.stopAccessingSecurityScopedResource()
                 }
             case .failure(let error):
@@ -386,7 +410,4 @@ struct ChatCapsule: View {
             }
         }
     }
-
 }
-
-
