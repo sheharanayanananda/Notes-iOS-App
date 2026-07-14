@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E8602C213006A0C900756ED1 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 41546C1BFDEA2AF762D0E41E /* MarkdownUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,16 +35,22 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E85213232F37677500E5E429 /* Slate */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = Slate;
 			sourceTree = "<group>";
 		};
 		E85213312F37677700E5E429 /* SlateTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = SlateTests;
 			sourceTree = "<group>";
 		};
 		E852133B2F37677700E5E429 /* SlateUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = SlateUITests;
 			sourceTree = "<group>";
 		};
@@ -56,7 +61,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E8602C213006A0C900756ED1 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -116,9 +120,6 @@
 				E85213232F37677500E5E429 /* Slate */,
 			);
 			name = Slate;
-			packageProductDependencies = (
-				41546C1BFDEA2AF762D0E41E /* MarkdownUI */,
-			);
 			productName = Slate;
 			productReference = E85213212F37677500E5E429 /* Slate.app */;
 			productType = "com.apple.product-type.application";
@@ -197,9 +198,6 @@
 			);
 			mainGroup = E85213182F37677500E5E429;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				5F21693DA318448E328E09BD /* XCRemoteSwiftPackageReference "MarkdownUI" */,
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E85213222F37677500E5E429 /* Products */;
 			projectDirPath = "";
@@ -611,22 +609,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		5F21693DA318448E328E09BD /* XCRemoteSwiftPackageReference "MarkdownUI" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/gonzalezreal/MarkdownUI.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.1.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		41546C1BFDEA2AF762D0E41E /* MarkdownUI */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5F21693DA318448E328E09BD /* XCRemoteSwiftPackageReference "MarkdownUI" */;
-			productName = MarkdownUI;
-		};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E85213192F37677500E5E429 /* Project object */;

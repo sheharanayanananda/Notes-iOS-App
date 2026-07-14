@@ -318,7 +318,7 @@ struct GenUIQuickActionsComponent: View {
     let json: [String: Any]
     @Binding var genuiState: String?
     
-    struct ActionItem: Identifiable, Codable {
+    struct ActionItem: Identifiable {
         let id = UUID()
         let label: String
         let action: String

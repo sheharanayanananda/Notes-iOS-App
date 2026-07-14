@@ -85,13 +85,15 @@ struct ChatBubbleView: View {
                 }
                 
                 if !message.content.isEmpty {
-                    MessageView(messageID: message.id, content: message.content, isNew: false)
+                    let isMultiline = message.content.contains("\n") || message.content.count > 30
+                    
+                    MessageView(messageID: message.id, content: message.content, isNew: false, isFullWidth: false)
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, isMultiline ? 11 : 8)
                         .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
-                        .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: isMultiline ? 18 : 100, style: .continuous))
                         .textSelection(.enabled)
-                        .lineHeight(.loose)
+                        .frame(maxWidth: UIScreen.main.bounds.width * 0.70, alignment: .trailing)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)

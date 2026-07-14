@@ -49,7 +49,7 @@ final class OllamaClient {
     private let apiKey: String?
     private let baseURL: URL
 
-    init(
+    nonisolated init(
         modelName: String? = nil,
         apiKey: String? = nil,
         baseURL: URL = URL(string: "https://ollama.com")!
