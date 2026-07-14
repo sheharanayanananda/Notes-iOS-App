@@ -14,43 +14,18 @@ struct NoteSharingHelper {
         let result = NSMutableAttributedString(attributedString: attributedString)
         let range = NSRange(location: 0, length: result.length)
         
-        // Resolve dynamic colors using light mode trait collection to prevent invisible text in dark mode
-        result.enumerateAttribute(.foregroundColor, in: range, options: []) { value, subrange, _ in
-            if let color = value as? UIColor {
-                let lightColor = color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
-                result.removeAttribute(.foregroundColor, range: subrange)
-                result.addAttribute(.foregroundColor, value: lightColor, range: subrange)
-            } else {
-                result.addAttribute(.foregroundColor, value: UIColor.black, range: subrange)
-            }
-        }
+        // Ensure all text is black (or dark color) for print/PDF export
+        result.addAttribute(.foregroundColor, value: UIColor.black, range: range)
         
-        result.enumerateAttribute(.attachment, in: range, options: []) { value, subrange, _ in
-            if let customAttachment = value as? CheckboxAttachment {
-                let config = UIImage.SymbolConfiguration(font: font)
-                let systemName = customAttachment.isChecked ? "checkmark.circle.fill" : "circle"
-                let rawColor = customAttachment.isChecked ? UIColor.systemBlue : UIColor.tertiaryLabel
-                let color = rawColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
-                if let rawImage = UIImage(systemName: systemName, withConfiguration: config)?.withTintColor(color, renderingMode: .alwaysOriginal) {
-                    let standardAttachment = NSTextAttachment()
-                    standardAttachment.image = rawImage
-                    
-                    let size = font.lineHeight
-                    let yOffset = (font.capHeight - size) / 2
-                    standardAttachment.bounds = CGRect(x: 0, y: yOffset, width: size, height: size)
-                    
-                    result.removeAttribute(.attachment, range: subrange)
-                    result.addAttribute(.attachment, value: standardAttachment, range: subrange)
-                }
-            }
-        }
+        // Apply target font
+        result.addAttribute(.font, value: font, range: range)
         
         return result
     }
     
     static func generateRichText(for note: SlateModel) -> NSAttributedString {
         let font = UIFont.preferredFont(forTextStyle: .body)
-        let baseAttr = AttributedMarkdownRenderer.parseToAttributed(text: note.desc, font: font)
+        let baseAttr = note.attributedDesc
         return prepareForExport(baseAttr, font: font)
     }
     

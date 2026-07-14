@@ -42,17 +42,19 @@ struct OllamaChatMessage: Codable, Equatable, Identifiable {
     let content: String
     var images: [String]? // Base64 encoded JPEG representations
     var documents: [OllamaDocumentAttachment]?
+    var genuiState: String? // Persistent interactive state
     
     enum CodingKeys: String, CodingKey {
-        case role, content, images, documents
+        case role, content, images, documents, genuiState
     }
     
-    init(id: String = UUID().uuidString, role: String, content: String, images: [String]? = nil, documents: [OllamaDocumentAttachment]? = nil) {
+    init(id: String = UUID().uuidString, role: String, content: String, images: [String]? = nil, documents: [OllamaDocumentAttachment]? = nil, genuiState: String? = nil) {
         self.id = id
         self.role = role
         self.content = content
         self.images = images
         self.documents = documents
+        self.genuiState = genuiState
     }
     
     init(from decoder: Decoder) throws {
@@ -61,6 +63,7 @@ struct OllamaChatMessage: Codable, Equatable, Identifiable {
         self.content = try container.decode(String.self, forKey: .content)
         self.images = try container.decodeIfPresent([String].self, forKey: .images)
         self.documents = try container.decodeIfPresent([OllamaDocumentAttachment].self, forKey: .documents)
+        self.genuiState = try container.decodeIfPresent(String.self, forKey: .genuiState)
         self.id = UUID().uuidString
     }
     
@@ -70,6 +73,7 @@ struct OllamaChatMessage: Codable, Equatable, Identifiable {
         try container.encode(content, forKey: .content)
         try container.encodeIfPresent(images, forKey: .images)
         try container.encodeIfPresent(documents, forKey: .documents)
+        try container.encodeIfPresent(genuiState, forKey: .genuiState)
     }
 }
 

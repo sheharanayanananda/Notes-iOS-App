@@ -85,7 +85,7 @@ struct ChatBubbleView: View {
                 }
                 
                 if !message.content.isEmpty {
-                    MessageView(content: message.content, isNew: false)
+                    MessageView(messageID: message.id, content: message.content, isNew: false)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
@@ -100,7 +100,7 @@ struct ChatBubbleView: View {
                 if message.content.isEmpty && isGenerating {
                     ChatLoadingStatusView()
                 } else {
-                    MessageView(content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed) {
+                    MessageView(messageID: message.id, content: message.content, isNew: isNew, onBlockRevealed: onBlockRevealed) {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                             isAnimationCompleted = true
                         }
@@ -135,22 +135,18 @@ struct ChatBubbleView: View {
     }
     
     private func isNoteWorthy(_ content: String) -> Bool {
-        let blocks = MarkdownParser.parse(content)
-        let hasRichContent = blocks.contains { block in
-            switch block {
-            case .header, .list, .code, .table, .latex, .alert: return true
-            default: return false
-            }
-        }
-        if hasRichContent { return true }
+        // Check for common markdown structures using standard string matches
+        if content.contains("\n#") || content.hasPrefix("#") { return true }
+        if content.contains("\n- ") || content.contains("\n* ") || content.contains("\n1. ") || content.contains("\n[ ]") { return true }
+        if content.contains("```") { return true }
+        if content.contains("|") { return true }
+        if content.contains("$") { return true }
+        if content.contains("> [!") { return true }
+        if content.contains("<genui>") { return true }
         
-        let paragraphText = blocks.compactMap { block -> String? in
-            if case .paragraph(let text) = block { return text }
-            return nil
-        }.joined(separator: " ")
-        
-        let wordCount = paragraphText.split(whereSeparator: { $0.isWhitespace }).count
-        return wordCount > 80
+        // Word count check (> 80 words)
+        let words = content.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+        return words.count > 80
     }
 }
 

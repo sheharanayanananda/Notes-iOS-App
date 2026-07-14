@@ -123,96 +123,28 @@ struct SlateTabView: View {
     // MARK: - Supporting Functions
     
     private func renderPreview(for text: String) -> AttributedString {
-        let blocks = MarkdownParser.parse(text)
-        var markdownParts: [String] = []
-        
-        func processBlocks(_ blocks: [MarkdownBlock]) {
-            for block in blocks {
-                switch block {
-                case .paragraph(let text):
-                    markdownParts.append(text)
-                    
-                case .header(_, let text):
-                    markdownParts.append("**\(text)**")
-                    
-                case .blockquote(let nestedBlocks):
-                    let currentCount = markdownParts.count
-                    processBlocks(nestedBlocks)
-                    let addedRange = currentCount..<markdownParts.count
-                    for idx in addedRange {
-                        markdownParts[idx] = "*\(markdownParts[idx])*"
-                    }
-                    
-                case .list(let items):
-                    for item in items {
-                        let prefix: String
-                        if let state = item.checkboxState {
-                            prefix = state == .checked ? "☑ ~~\(item.text)~~" : "☐ \(item.text)"
-                            markdownParts.append(prefix)
-                        } else {
-                            switch item.type {
-                            case .bullet:
-                                prefix = "• \(item.text)"
-                            case .numbered(let number):
-                                prefix = "\(number). \(item.text)"
-                            }
-                            markdownParts.append(prefix)
-                        }
-                    }
-                    
-                case .code(let language, let code):
-                    let displayLang = language?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? language! : "Plain"
-                    let firstLine = code.components(separatedBy: "\n").first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
-                    markdownParts.append("**💻 Code (\(displayLang))**: `\(firstLine)`")
-                    
-                case .table(let headers, _, _):
-                    let headerString = headers.joined(separator: " | ")
-                    markdownParts.append("**📊 Table**: \(headerString)")
-                    
-                case .thematicBreak:
-                    markdownParts.append("---")
-                    
-                case .latex(_, let equation):
-                    let singleLineEq = equation.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
-                    markdownParts.append("**🧮 Math**: `\(singleLineEq)`")
-                    
-                case .alert(let type, let nestedBlocks):
-                    let emoji: String
-                    switch type {
-                    case .note: emoji = "ℹ️"
-                    case .tip: emoji = "💡"
-                    case .important: emoji = "⚠️"
-                    case .warning: emoji = "⚠️"
-                    case .caution: emoji = "🛑"
-                    }
-                    let alertTitle = "**\(emoji) \(type.rawValue.capitalized)**: "
-                    let currentCount = markdownParts.count
-                    processBlocks(nestedBlocks)
-                    let addedRange = currentCount..<markdownParts.count
-                    if addedRange.isEmpty {
-                        markdownParts.append(alertTitle)
-                    } else {
-                        markdownParts[addedRange.lowerBound] = alertTitle + markdownParts[addedRange.lowerBound]
-                    }
-                    
-                case .image(let caption, _):
-                    let displayCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? caption : "photo"
-                    markdownParts.append("**🖼️ Image**: \(displayCaption)")
+        let lines = text.components(separatedBy: .newlines)
+            .map { line -> String in
+                let cleaned = line.trimmingCharacters(in: .whitespaces)
+                if cleaned.hasPrefix("#") {
+                    return cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "# "))
+                } else if cleaned.hasPrefix("- [ ]") {
+                    return "☐ " + cleaned.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                } else if cleaned.hasPrefix("- [x]") {
+                    return "☑ " + cleaned.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                } else if cleaned.hasPrefix("- ") || cleaned.hasPrefix("* ") {
+                    return "• " + cleaned.dropFirst(2).trimmingCharacters(in: .whitespaces)
                 }
+                return cleaned
             }
-        }
+            .filter { !$0.isEmpty }
         
-        processBlocks(blocks)
-        let cleanedText = markdownParts.joined(separator: "\n")
-        
-        var options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        options.allowsExtendedAttributes = true
-        
-        if let attrStr = try? AttributedString(markdown: cleanedText, options: options) {
+        let previewText = lines.prefix(3).joined(separator: "\n")
+        let mdOptions = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        if let attrStr = try? AttributedString(markdown: previewText, options: mdOptions) {
             return attrStr
-        } else {
-            return AttributedString(cleanedText)
         }
+        return AttributedString(previewText)
     }
     
 
