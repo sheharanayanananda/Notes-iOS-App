@@ -937,14 +937,7 @@ struct NativeTextView: UIViewRepresentable {
             
             if expandedRect.contains(adjustedLocation) {
                 if let attachment = textView.textStorage.attribute(NSAttributedString.Key.attachment, at: characterIndex, effectiveRange: nil) as? CheckboxAttachment {
-                    // Defer mutation to the next runloop turn to prevent layout-pass / gesture conflict crashes
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self = self, let currentTextView = self.textView else { return }
-                        // Re-verify the index is still safe to avoid race conditions
-                        if characterIndex < currentTextView.textStorage.length {
-                            self.toggleCheckbox(at: characterIndex, in: currentTextView, currentAttachment: attachment)
-                        }
-                    }
+                    toggleCheckbox(at: characterIndex, in: textView, currentAttachment: attachment)
                 }
             }
         }
@@ -953,13 +946,12 @@ struct NativeTextView: UIViewRepresentable {
             let isChecked = !currentAttachment.isChecked
             let newAttachment = CheckboxAttachment(isChecked: isChecked)
             
-            // Perform in-place mutation of textStorage to preserve TextKit 2 document locations
-            textView.textStorage.beginEditing()
+            let attrString = NSMutableAttributedString(attributedString: textView.attributedText)
+            guard index < attrString.length else { return }
+            attrString.removeAttribute(.attachment, range: NSRange(location: index, length: 1))
+            attrString.addAttribute(.attachment, value: newAttachment, range: NSRange(location: index, length: 1))
             
-            textView.textStorage.removeAttribute(.attachment, range: NSRange(location: index, length: 1))
-            textView.textStorage.addAttribute(.attachment, value: newAttachment, range: NSRange(location: index, length: 1))
-            
-            let nsString = textView.textStorage.string as NSString
+            let nsString = attrString.string as NSString
             let lineRange = nsString.lineRange(for: NSRange(location: index, length: 1))
             
             if lineRange.length > 3 {
@@ -967,33 +959,42 @@ struct NativeTextView: UIViewRepresentable {
                 var endPos = lineRange.location + lineRange.length
                 
                 // Trim trailing newline to avoid applying strikethrough to the newline char
-                if endPos > 0 && endPos <= textView.textStorage.length {
+                if endPos > 0 && endPos <= attrString.length {
                     let lastChar = nsString.character(at: endPos - 1)
                     if lastChar == unichar(10) { // '\n' ASCII is 10
                         endPos -= 1
                     }
                 }
                 
-                if startPos < endPos && endPos <= textView.textStorage.length {
+                if startPos < endPos && endPos <= attrString.length {
                     let textRange = NSRange(location: startPos, length: endPos - startPos)
                     if isChecked {
-                        textView.textStorage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: textRange)
-                        textView.textStorage.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: textRange)
+                        attrString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: textRange)
+                        attrString.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: textRange)
                     } else {
-                        textView.textStorage.removeAttribute(.strikethroughStyle, range: textRange)
-                        textView.textStorage.addAttribute(.foregroundColor, value: UIColor.label, range: textRange)
+                        attrString.removeAttribute(.strikethroughStyle, range: textRange)
+                        attrString.addAttribute(.foregroundColor, value: UIColor.label, range: textRange)
                     }
                 }
             }
             
-            textView.textStorage.endEditing()
-            
-            // Serialize the updated content safely
-            let newText = NativeTextView.serializeToString(attributed: textView.textStorage)
-            
             isUpdating = true
+            let selectedRange = textView.selectedRange
+            textView.attributedText = attrString
+            
+            let newText = NativeTextView.serializeToString(attributed: attrString)
             self.lastParsedText = newText
             parent.text = newText
+            
+            // Safely restore selection range within new length
+            let maxLen = textView.attributedText.length
+            if selectedRange.location <= maxLen {
+                let safeLen = min(selectedRange.length, maxLen - selectedRange.location)
+                textView.selectedRange = NSRange(location: selectedRange.location, length: safeLen)
+            } else {
+                textView.selectedRange = NSRange(location: maxLen, length: 0)
+            }
+            
             isUpdating = false
             
             let generator = UIImpactFeedbackGenerator(style: .light)
