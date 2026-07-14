@@ -1,6 +1,6 @@
 # Slate V2 — The Agentic Notes App
 
-> **Branch:** `v2` &nbsp;|&nbsp; **Platform:** iOS 17+ &nbsp;|&nbsp; **Built with:** Swift & SwiftUI &nbsp;|&nbsp; **Backend:** Ollama
+> **Branch:** `v2` &nbsp;|&nbsp; **Platform:** iOS 17+ &nbsp;|&nbsp; **Built with:** Swift & SwiftUI &nbsp;|&nbsp; **LLM Provider:** Ollama
 
 Slate V2 is the next-generation evolution of the Slate note-taking platform. It moves beyond static text editing to deliver a fully autonomous, context-aware AI agent ecosystem — designed to manage, synthesize, and automate your personal knowledge base, all running on-device using a local Ollama AI backend.
 
