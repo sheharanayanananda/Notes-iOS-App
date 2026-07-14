@@ -1,88 +1,232 @@
-# Slate V2: The Agentic Notes App
+# Slate V2 — The Agentic Notes App
 
-Slate V2 is the next-generation, commercial iteration of the Slate note-taking platform for iOS. Built with Swift and SwiftUI, V2 moves beyond static text editing to deliver a fully autonomous, context-aware AI agent ecosystem designed to manage, synthesize, and automate a user's personal knowledge base.
+> **Branch:** `v2` &nbsp;|&nbsp; **Platform:** iOS 17+ &nbsp;|&nbsp; **Built with:** Swift & SwiftUI &nbsp;|&nbsp; **Backend:** Ollama
 
-The V2 codebase resides in the `v2` branch of this repository, while the V1 version remains available on the `main` branch.
+Slate V2 is the next-generation evolution of the Slate note-taking platform. It moves beyond static text editing to deliver a fully autonomous, context-aware AI agent ecosystem — designed to manage, synthesize, and automate your personal knowledge base, all running on-device using a local Ollama AI backend.
 
----
-
-## The Agentic Vision
-At the core of Slate V2 is the transition from a passive note-taking tool to an active **AI Agent**. The application is structured around a centralized workspace where the agent understands context, processes documents, and assists the user through advanced LLM reasoning.
-
-### 1. The Centralized Chat Command Center
-The chat interface (`ChatView`) is the primary control deck of Slate V2. Through conversational prompts, the user can interact with the agent, process attachments, and get contextual summaries. Powered by `ChatManager`, generation processes run asynchronously and continue even if the app enters the background, alerting users via notifications when done.
-
-### 2. Multi-Model Presets
-- **Preset Behaviors**: Switch system instructions, temperatures, and context sizes instantly:
-  - **Balanced Assistant**: Standard note-taking and reasoning.
-  - **Deep Reasoning**: Max context for analyzing complex threads or multi-page documents.
-  - **Creative Drafts**: High creativity for brain-storming.
-  - **Quick Fixes**: Snappy, low-overhead responses.
-- **Visual indicators**: Cascading vertical wave bounce typing indicator (Loading Wave) and sequential fade-in paragraph transitions.
-
-### 3. Rich Document & Media Attachments
-Users can attach multiple file types directly to the Chat Command Center using the floating capsule:
-- **Images & Photos**: Attached from the library or captured live via a custom `CameraPicker`.
-- **Documents**: Local parsing of PDF, Word (DOCX), RTF, and plain text files from ZIP archives, automatically parsed by a high-efficiency `DocumentParser`.
-
-### 4. Interactive Physics-Based Input Capsule
-- **Liquid Glass Chat Capsule**: A floating input bar featuring dynamic horizontal/vertical stretching animations and rubber-band spring physics on drag offsets.
-- **Drag & Gesture Interactions**: Full support for responsive drag gestures, interactive haptic feedback patterns (soft on drag start, continuous selection haptics on stretching, rigid feedback on release), and full-body capsule focus.
-
-### 5. High-Fidelity Markdown & LaTeX Formatting
-- **Advanced Math Rendering**: Support for inline and block equations, integrations, matrices, and custom algebraic/quantum symbols using cached web layouts and MathJax.
-- **Optimized Layout Rendering**: Thread-safe dictionary caching for structural blocks and statically compiled regex styling for smooth 60 FPS scrolling.
+> The V1 codebase (document scanning, Scribe voice agent) lives on the `main` branch. This `v2` branch is a ground-up architectural rebuild.
 
 ---
 
-## Codebase Structure
+## Architecture
 
-Slate V2 uses a unified, modular architecture to separate App UI, persistence models, services, and utilities:
+Slate V2 follows a clean layered architecture with strict separation of responsibilities:
 
-```text
-├── Slate/
-│   ├── App/             # App lifecycle (SlateApp.swift, ContentView.swift)
-│   ├── Models/          # SwiftData models (SlateModel.swift, SystemPrompts.swift)
-│   ├── Services/        # Ollama client and Keychain storage wrappers
-│   ├── Utilities/       # DocumentParser, ChatManager, RTF and sharing helpers
-│   └── Views/           # SwiftUI View hierarchy
-│       ├── Chat/        # Chat workspace, ChatCapsule, CameraPicker, and Markdown/LaTeX formatting
-│       ├── Notes/       # Note editor, native text view canvas, blocks, and note lists
-│       └── Settings/    # API configuration panel and settings view model
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  App Layer                                                        │
+│  SlateApp.swift       → SwiftData container, notification setup  │
+│  ContentView.swift    → Tab router, animated Chat overlay         │
+└───────────────────────────────────┬──────────────────────────────┘
+                                    │
+┌───────────────────────────────────▼──────────────────────────────┐
+│  Core Layer                                                       │
+│  SlateModel           → @Model note entity (SwiftData)           │
+│  OllamaClient         → REST API client (generate / chat / stream)│
+│  KeychainHelper       → Secure API key storage (Security.framework)│
+└───────┬───────────────────────────┬──────────────────────────────┘
+        │                           │
+┌───────▼───────────────────────────▼──────────────────────────────┐
+│  Features Layer                                                   │
+│  Notes/     → Hybrid block editor, sharing, note list            │
+│  Chat/      → AI chat, sessions, capsule input, MD renderer      │
+│  Settings/  → API key management + live validation               │
+└───────────────────────────────────┬──────────────────────────────┘
+                                    │
+┌───────────────────────────────────▼──────────────────────────────┐
+│  Shared Utilities Layer                                           │
+│  DocumentParser       → PDF / DOCX / XLSX / RTF text extraction  │
+│  MarkdownToRTFConverter → Markdown → RTF for clipboard/share     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### File Tree
+
+```
+Slate/
+├── App/
+│   ├── SlateApp.swift               # Entry point, SwiftData container
+│   └── ContentView.swift            # Root tab view + Chat slide-over
+├── Core/
+│   ├── Models/
+│   │   └── SlateModel.swift         # SwiftData note model
+│   └── Services/
+│       ├── OllamaClient.swift       # Ollama REST API (generate/chat/stream)
+│       └── KeychainHelper.swift     # Secure Keychain wrapper
+├── Features/
+│   ├── Chat/
+│   │   ├── Components/
+│   │   │   ├── CameraPicker.swift   # Camera + VisionKit document scanner
+│   │   │   ├── ChatCapsule.swift    # Physics input bar + attachments
+│   │   │   ├── MDFormatter.swift    # Markdown parser + inline renderer
+│   │   │   └── MessageView.swift    # Animated block-by-block renderer
+│   │   ├── Models/
+│   │   │   └── SystemPrompts.swift  # All AI personas + preset configs
+│   │   ├── Services/
+│   │   │   └── ChatManager.swift    # Session manager, send, persist
+│   │   └── Views/
+│   │       ├── ChatView.swift       # Primary chat interface
+│   │       └── ChatHistoryView.swift# Past sessions browser
+│   ├── Notes/
+│   │   ├── Components/
+│   │   │   ├── NativeTextView.swift # UITextView rich markdown editor
+│   │   │   ├── SpecialBlockWrapper.swift # Read-only block selection
+│   │   │   └── ShareSheet.swift     # UIActivityViewController wrapper
+│   │   ├── Utilities/
+│   │   │   ├── NoteBlockUtility.swift  # Markdown ↔ block model split
+│   │   │   └── NoteSharingHelper.swift # PDF / RTF / TXT export
+│   │   └── Views/
+│   │       ├── SlateTabView.swift   # Note list + swipe actions
+│   │       └── CreateTabView.swift  # Block editor + AI organizer
+│   └── Settings/
+│       ├── ViewModels/
+│       │   └── SettingsViewModel.swift # @Observable key state + validation
+│       └── Views/
+│           └── SettingsView.swift   # API key UI
+└── Shared/
+    └── Utilities/
+        ├── DocumentParser.swift     # PDF/DOCX/XLSX/RTF parser, pure-Swift ZIP
+        └── MarkdownToRTFConverter.swift # Markdown → base64 RTF
 ```
 
 ---
 
-## Requirements
+## Features
 
-- Xcode 15.0 or later
-- iOS 17.0 or later
-- Camera & Photo Library permissions (for media attachments)
-- Ollama API connection
+### 📝 Notes
+
+- **Hybrid Block Editor** — The editor seamlessly interleaves an editable `NativeTextView` (UITextView-backed) with read-only rendered blocks (`SpecialBlockWrapper`) for code, tables, LaTeX equations, alert callouts, and horizontal rules.
+- **Full Markdown Rendering** — Headers (H1–H3), bold, italic, underline, strikethrough, inline code, blockquotes, bullet lists, numbered lists, and interactive checklists all rendered natively inside a `UITextView` using a custom `NSAttributedString` serializer.
+- **Interactive Checkboxes** — Custom `NSTextAttachment` subclass renders SF Symbol checkboxes. A `UITapGestureRecognizer` with surgical hit-testing detects taps within the checkbox glyph bounds and toggles state with haptic feedback.
+- **Keyboard Accessory Toolbar** — Floating grouped capsule toolbar with Bold, Italic, Underline, Strikethrough, Checklist, Bullet List, Numbered List, Indent/Outdent, and Dismiss Keyboard buttons.
+- **AI-Generated Titles** — After saving a note, a background task calls Ollama to generate a concise 3-word title automatically.
+- **Note List** — Live SwiftData `@Query` sorted by creation date (newest first) with markdown-aware rich previews. Special blocks shown with emoji icons (💻 code, 📊 table, 🧮 math, 🖼️ image, etc.).
+- **Export Formats** — Share any note as adaptive Rich Text (RTF for Messages/Mail, markdown for others), PDF (A4, rendered at 595×842pt), or plain `.txt`.
+- **Swipe Actions** — Swipe left to delete; swipe right to share.
+
+### 💬 Slate AI Chat
+
+- **Multi-turn Streaming Chat** — Powered by the Ollama `/api/chat` endpoint with async streaming via `URLSession.bytes` async sequences. Responses are delivered token-by-token in real time.
+- **Six Chat Presets** — Each preset configures a unique AI personality, temperature, context window size, and thinking depth:
+
+  | Preset | Focus | Temperature | Context |
+  |---|---|---|---|
+  | Slate Lite | Quick, lightweight | 0.1 | 4K |
+  | Slate Flash | Balanced assistant | 0.3 | 8K |
+  | Slate Creative | Brainstorming | 0.8 | 8K |
+  | Slate Scholar | Deep research | 0.2 | 32K |
+  | Slate Coder | Code & debugging | 0.1 | 16K |
+  | Slate Pro | Maximum reasoning | 0.2 | 32K |
+
+- **Animated Block Reveal** — AI responses are parsed into a `MarkdownBlock` tree and revealed block-by-block with a 120ms staggered delay using spring + opacity + slide transitions.
+- **Full Markdown + LaTeX Rendering** — Custom single-pass `MarkdownParser` handles all GFM block types (headers, blockquotes, fenced code, tables with alignment, GitHub alert callouts, thematic breaks, task lists, images) plus LaTeX math blocks. Inline rendering supports bold, italic, strikethrough, underline, colored underlines, inline code, auto-linked URLs and emails.
+- **LaTeX via MathJax** — Math blocks are rendered in an embedded `WKWebView` loading MathJax 3 from CDN. A `WKScriptMessageHandler` bridge reports rendered height back to SwiftUI to auto-size the view.
+- **Thread-safe LRU Markdown Cache** — `MarkdownCache` stores up to 100 parsed block results and 400 inline `Text` renderings, protected by `NSRecursiveLock`, eliminating redundant re-parses during scroll.
+- **Diff Syntax Highlighting** — Code blocks detect diff format and colour lines starting with `+` (green) and `-` (red).
+- **File & Image Attachments** — Attach up to 10 images from Photos, Camera, or a document scanner. Attach files including PDF (text extraction, visual fallback for scanned PDFs), DOCX, XLSX (rendered as markdown table), RTF, and plain text/CSV/JSON.
+- **Physics Input Capsule** — The `ChatCapsule` input bar has rubber-band drag physics: a `DragGesture` applies a 0.5× damped offset with non-uniform `scaleEffect(x:y:)` proportional to drag distance, snapping back with `dampingFraction: 0.55`. Haptics fire on drag start (soft), at 25pt stretch intervals (selection), and on release (rigid).
+- **Multi-Session History** — All chat sessions are persisted as JSON in the app's Documents directory. Sessions are auto-titled from the first message. View, switch between, and delete sessions in a dedicated history sheet.
+- **Background Generation** — `ChatManager` uses `UIBackgroundTaskIdentifier` to keep generation running when the app is minimized. A local `UNUserNotificationCenter` notification fires when the response is ready.
+- **"Add to Slate" Note Extraction** — Any AI response can be converted into a note. A second Ollama call with `SystemPrompts.noteExtractionMessages` extracts a structured title and clean markdown body from the raw chat response.
+- **Contextual Error Bubbles** — Network errors are categorised (offline, timeout, auth failure, quota exceeded, server unreachable) and shown with descriptive icons and recovery guidance.
+
+### ⚙️ Settings & Security
+
+- **Keychain-Secured API Key** — The Ollama API key is stored using raw `Security.framework` (`kSecClassGenericPassword`, `kSecAttrAccessibleAfterFirstUnlock`). It never touches `UserDefaults`.
+- **Live Validation** — `SettingsViewModel` debounces key changes by 800ms, then performs a real network call to validate the key. Status is shown inline: spinner while checking, green checkmark for valid, red with reason for invalid, orange for quota exceeded.
+- **Show/Hide Toggle** — Switch between `SecureField` and `TextField` with the eye icon.
+
+---
+
+## Tech Stack
+
+All functionality is implemented using **Apple system frameworks only**. There are zero third-party dependencies.
+
+| Framework | Usage |
+|---|---|
+| SwiftUI | All UI surfaces |
+| SwiftData | Note persistence (`@Model`, `@Query`) |
+| UIKit | Rich text editor (`UITextView`), document sharing, PDF rendering |
+| WebKit | LaTeX rendering via MathJax in `WKWebView` |
+| VisionKit | Multi-page document scanner (`VNDocumentCameraViewController`) |
+| PhotosUI | `PhotosPicker` for image attachments |
+| PDFKit | PDF text extraction |
+| Compression | ZIP Deflate decompression for DOCX/XLSX parsing |
+| Security | Keychain API for API key storage |
+| UserNotifications | Local push notifications for background AI completion |
+
+> **External runtime dependency:** MathJax 3 is loaded from `cdn.jsdelivr.net` at runtime when LaTeX content is rendered. An internet connection is required for LaTeX display.
 
 ---
 
 ## Getting Started
 
-1. **Clone the Repository and Switch to V2**:
+### Requirements
+
+- Xcode 16.0 or later
+- iOS 17.0 or later
+- [Ollama](https://ollama.ai) running locally or on a reachable server
+- Camera & Photo Library permissions (for media attachments)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/sheharanayanananda/Slate.git
+cd Slate
+
+# Switch to the V2 branch
+git checkout v2
+
+# Open in Xcode
+open Slate.xcodeproj
+```
+
+### Configuration
+
+1. Start your Ollama server (default: `http://localhost:11434`).
+2. Pull a model — for best results:
    ```bash
-   git clone https://github.com/sheharanayanananda/Slate.git
-   cd Slate
-   git checkout v2
+   ollama pull gemma4:31b
    ```
+3. Build and run on your device (`⌘ + R`).
+4. Open **Settings** in the app and enter your Ollama API key.
+5. The key is validated live against your server.
 
-2. **Open the Project**:
-   Open `Slate.xcodeproj` in Xcode.
+> The app defaults to model `gemma4:31b` from `UserDefaults`. This can be changed programmatically via the `ollama_model_name` key.
 
-3. **Secure API Configuration**:
-   Input your selected model API key in the app Settings screen. Keys are encrypted and stored in the secure Apple Keychain.
+---
 
-4. **Build and Run**:
-   Press `⌘ + R` to build and run on your target iOS device or simulator.
+## Key Implementation Notes
+
+These sections highlight engineering decisions that go beyond standard iOS development.
+
+### Bidirectional Markdown ↔ NSAttributedString Serializer
+`NativeTextView` contains a fully custom, bidirectional serializer. `parseToAttributed(text:font:)` converts raw markdown line-by-line into a rich `NSAttributedString` with paragraph styles, custom `NSTextAttachment` checkboxes, and inline span attributes. `serializeToString(attributed:)` reverses this — enumerating every attribute run and reconstructing the original markdown string, including detecting `CheckboxAttachment` subclasses, mapping `firstLineHeadIndent` values back to list types, and re-emitting inline span markers. This avoids any dependency on a third-party rich text library.
+
+### Pure-Swift ZIP Parser
+`DocumentParser` contains a hand-rolled `ZIPArchive` struct that reads ZIP-format files (used by both DOCX and XLSX) without any external libraries. It reads the End-of-Central-Directory record, walks the central directory, resolves local file headers, and decompresses Deflate-compressed entries using Apple's `Compression` framework (`COMPRESSION_ZLIB`). XLSX files are then SAX-parsed with `XMLParser` delegates that reconstruct the spreadsheet grid using Excel-style base-26 column reference arithmetic.
+
+### Thread-Safe LRU Markdown Cache
+`MDFormatter.MarkdownCache` is a thread-safe in-memory LRU cache protected by `NSRecursiveLock`, storing up to 100 parsed `[MarkdownBlock]` results and 400 inline `Text` renderings keyed by content string. This eliminates redundant re-parsing during `List` scroll recycling, where the same message content would otherwise be re-parsed on every cell dequeue.
+
+### Physics Input Bar
+`ChatCapsule` implements rubber-band drag physics entirely within SwiftUI. A `DragGesture` on the background `GeometryReader` tracks horizontal and vertical translation separately. `dragScaleX` and `dragScaleY` are computed from these offsets with independent clamping, producing a non-uniform `scaleEffect` that squishes the capsule horizontally when dragged vertically and vice versa. On release, a spring animation with `dampingFraction: 0.55` returns it to its natural size. Three haptic patterns (soft, selection at 25pt intervals, rigid) give the interaction physical texture.
+
+### MathJax WKWebView Height Bridge
+`LaTeXWebViewRepresentable` renders LaTeX inside a `WKWebView` loading MathJax 3 from CDN. After rendering, an injected JavaScript handler calls `window.webkit.messageHandlers.heightHandler.postMessage(document.body.scrollHeight)`. The `WKScriptMessageHandler` receives this and updates a `@Binding<CGFloat>` on the `MainActor`, resizing the SwiftUI frame to exactly match the rendered content — avoiding either fixed heights or scroll-within-scroll issues.
+
+### ChatManager Background Execution
+When the user sends a message, `ChatManager.sendMessage` immediately appends an empty assistant placeholder for optimistic UI, then wraps the actual API call in a `Task.detached(priority: .background)` guarded by a `UIBackgroundTaskIdentifier`. This allows streaming to continue for up to 30 seconds after the app enters the background. On completion, a `UNTimeIntervalNotificationTrigger` (1s delay) fires a local notification so the user knows the response is ready.
 
 ---
 
 ## License
 
-This project is licensed under the **Slate Proprietary and Source-Available License**. See the [LICENSE](LICENSE) file for the full license text permitting personal, educational, and evaluation use (such as recruiter inspections) while prohibiting unauthorized commercial redistribution.
+This project is licensed under the **Slate Proprietary Source-Available License**.
 
+You are permitted to view, clone, and inspect this code for personal, educational, and evaluation purposes (including recruiter and employer review). **Commercial use of any kind is strictly prohibited** without a separate written agreement.
+
+See the [LICENSE](LICENSE) file for the full terms.
+
+Copyright © 2026 Thineth Shehara. All rights reserved.

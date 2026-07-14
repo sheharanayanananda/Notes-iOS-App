@@ -1,24 +1,244 @@
-Slate Proprietary and Source-Available License
+SLATE PROPRIETARY SOURCE-AVAILABLE LICENSE
+
+Version 1.0 — Effective Date: 2026
 
 Copyright (c) 2026 Thineth Shehara. All rights reserved.
 
-This software and all associated source files (collectively, the "Software") are proprietary. Unauthorized copying, modification, redistribution, or commercial use of the Software, via any medium or platform, is strictly prohibited except as permitted below.
+================================================================================
+PREAMBLE
+================================================================================
 
-1. PERSONAL AND EDUCATIONAL USE LICENSE
-You are granted a non-exclusive, non-transferable, royalty-free license to download, run, inspect, and modify the Software solely for personal, educational, research, and non-commercial evaluation purposes (including inspections by prospective employers and recruiters). 
+This License governs all access to and use of the software, source code, object
+code, documentation, assets, and any other associated files in this repository
+(collectively, the "Software"). The Software is the exclusive intellectual
+property of Thineth Shehara (the "Author").
 
-2. COMMERCIAL USE RESTRICTIONS
-You may not use the Software, or any derivative works thereof, for any commercial purpose without obtaining a separate, written Commercial License from the copyright owner. Commercial purposes include, but are not limited to:
-- Operating a business, commercial enterprise, or generating revenue using the Software.
-- Publishing, sublicensing, or distributing the Software on any public application store or marketplace (including the Apple App Store).
-- Integrating the Software into any closed-source, proprietary, or commercial product or service.
+This License makes the source code publicly visible for the purposes of
+personal study, education, and evaluation — including inspection by prospective
+employers and recruiters. It does NOT make this Software "open source" as
+defined by the Open Source Initiative (OSI), and it does NOT grant any right to
+use the Software for commercial purposes of any kind.
 
-3. COMMERCIAL LICENSING INQUIRIES
-Businesses, enterprises, or developers wishing to obtain a license for commercial use, enterprise deployment, closed-source forks, or redistribution rights may contact the copyright owner to negotiate and purchase a Commercial License.
+================================================================================
+SECTION 1 — PERMITTED USES
+================================================================================
 
-Contact Channels:
-- Email: sheharanayanananda@gmail.com
-- LinkedIn: https://www.linkedin.com/in/thineth-nayanananda-54815b228/
+Subject to the terms of this License, you are granted a limited, non-exclusive,
+non-transferable, royalty-free right to:
 
-4. NO WARRANTY
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  (a) View, download, and clone this Software for personal, educational,
+      non-commercial research, or evaluation purposes only;
+
+  (b) Study, read, and inspect the source code for learning purposes;
+
+  (c) Inspect the source code as a prospective employer, recruiter, or hiring
+      professional for the sole purpose of evaluating the Author's technical
+      skill and work quality;
+
+  (d) Run the Software on your own device(s) for personal, non-commercial use;
+
+  (e) Create private, local modifications strictly for personal learning and
+      experimentation, provided such modifications are never distributed or used
+      commercially.
+
+All uses not explicitly listed in this Section 1 are PROHIBITED.
+
+================================================================================
+SECTION 2 — PROHIBITED USES
+================================================================================
+
+The following uses are STRICTLY PROHIBITED without a separate, explicit, written
+Commercial License Agreement signed by the Author:
+
+2.1  COMMERCIAL USE
+     You may not use the Software, in whole or in part, for any commercial
+     purpose. "Commercial purpose" includes, but is not limited to, any use
+     intended to generate revenue, profit, financial gain, business advantage,
+     or economic value — whether directly or indirectly, and whether or not
+     money changes hands.
+
+2.2  APP STORE AND MARKETPLACE DISTRIBUTION
+     You may not publish, distribute, or make available the Software or any
+     derivative work based on the Software on any public or private application
+     marketplace or platform, including but not limited to the Apple App Store,
+     Google Play Store, Amazon Appstore, Microsoft Store, or any third-party
+     app distribution platform.
+
+2.3  SOFTWARE-AS-A-SERVICE (SaaS) AND HOSTED SERVICES
+     You may not deploy, host, or make the Software or any derivative work
+     available as a service to third parties over a network, including via the
+     internet, an intranet, an API, a web application, a mobile backend, or
+     any managed or cloud-hosted service — regardless of whether a fee is
+     charged for such service.
+
+2.4  DERIVATIVE COMMERCIAL PRODUCTS
+     You may not create, build, develop, or distribute any product or service
+     — whether software, hardware, or otherwise — that is based on, derived
+     from, incorporates, embeds, links to, or substantially replicates the
+     design, logic, architecture, or functionality of this Software, if such
+     product or service is used for any commercial purpose.
+
+2.5  WHITE-LABELING AND REBRANDING
+     You may not rebrand, rename, reskin, or otherwise repackage the Software
+     or any portion thereof and distribute it under a different name, identity,
+     or brand.
+
+2.6  INDIRECT AND EMBEDDED MONETIZATION
+     You may not embed or integrate the Software, in whole or in part, into
+     any product, application, or service that generates revenue through
+     advertising, subscriptions, in-app purchases, data monetization,
+     sponsorships, affiliate arrangements, or any other indirect commercial
+     mechanism.
+
+2.7  REDISTRIBUTION
+     You may not reproduce, publish, distribute, sublicense, sell, transfer,
+     or otherwise make the Software available to any third party in any form —
+     including source code, object code, compiled binaries, modified versions,
+     or as part of a larger work — except as explicitly permitted under
+     Section 1 of this License.
+
+2.8  SUB-LICENSING
+     You may not grant any third party any rights to use, copy, modify, or
+     distribute the Software. You may not include this Software under any
+     other license, open-source or otherwise.
+
+2.9  REVERSE ENGINEERING FOR COMMERCIAL GAIN
+     You may not study, analyse, decompile, or reverse-engineer the Software
+     for the purpose of replicating, recreating, or competing with its
+     functionality in a commercial product or service.
+
+2.10 PATENT USE
+     You may not use any invention, algorithm, data structure, method, process,
+     or system described, implemented, or demonstrated in this Software as the
+     basis for a patent application, patent claim, or any intellectual property
+     right asserted against the Author or any user of the Software.
+
+2.11 CIRCUMVENTION
+     You may not take any action, individually or in concert with others, that
+     is designed to circumvent, avoid, or work around any restriction set forth
+     in this License, including but not limited to creating intermediary entities,
+     structuring transactions, or using technical means to disguise prohibited uses.
+
+================================================================================
+SECTION 3 — NO RIGHTS BY IMPLICATION OR ESTOPPEL
+================================================================================
+
+No rights are granted by implication, estoppel, or otherwise. The Author's
+failure to enforce any provision of this License does not constitute a waiver
+of that provision or of any other provision. Silence, inaction, or prior
+tolerance of a violation does not grant any ongoing or future right to continue
+such violation.
+
+================================================================================
+SECTION 4 — INTELLECTUAL PROPERTY AND OWNERSHIP
+================================================================================
+
+The Author retains all right, title, and interest in and to the Software,
+including all intellectual property rights (copyright, trade secrets, moral
+rights, and any other applicable rights) worldwide. This License does not
+transfer any ownership interest in the Software to you.
+
+Any modification, derivative work, translation, or adaptation of the Software
+that you create — even if permitted under Section 1(e) — remains the exclusive
+property of the Author to the extent it is derived from this Software. You
+assign to the Author all rights in any such derivative works.
+
+================================================================================
+SECTION 5 — COPYRIGHT NOTICE PRESERVATION
+================================================================================
+
+Any permitted use of the Software must retain, in all copies and in all
+portions of the Software, the following:
+
+  (a) This License file in its entirety;
+  (b) All copyright notices contained in the source files;
+  (c) Attribution to the Author: "Copyright (c) 2026 Thineth Shehara".
+
+You may not remove, obscure, alter, or replace any copyright notice, license
+notice, author credit, or attribution in the Software.
+
+================================================================================
+SECTION 6 — TERMINATION
+================================================================================
+
+Your rights under this License terminate automatically, immediately, and without
+notice upon any breach of any provision of this License. Upon termination:
+
+  (a) All rights granted to you under this License cease immediately;
+  (b) You must immediately destroy all copies of the Software in your possession
+      or control, including any derivative works;
+  (c) Termination does not limit any other remedy available to the Author at law
+      or in equity.
+
+Sections 4, 5, 7, 8, 9, and 10 survive termination of this License.
+
+================================================================================
+SECTION 7 — DISCLAIMER OF WARRANTIES
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHOR
+EXPRESSLY DISCLAIMS ALL WARRANTIES, INCLUDING BUT NOT LIMITED TO THE IMPLIED
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+NON-INFRINGEMENT. THE AUTHOR DOES NOT WARRANT THAT THE SOFTWARE WILL MEET YOUR
+REQUIREMENTS, THAT OPERATION WILL BE UNINTERRUPTED, OR THAT THE SOFTWARE WILL
+BE ERROR-FREE.
+
+================================================================================
+SECTION 8 — LIMITATION OF LIABILITY
+================================================================================
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE AUTHOR
+BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, PUNITIVE, OR
+CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO LOSS OF DATA, LOSS OF
+PROFITS, LOSS OF BUSINESS, OR LOSS OF GOODWILL) ARISING OUT OF OR IN CONNECTION
+WITH THIS SOFTWARE OR THIS LICENSE, EVEN IF THE AUTHOR HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGES. THE AUTHOR'S TOTAL CUMULATIVE LIABILITY TO YOU
+FOR ALL CLAIMS ARISING FROM OR RELATED TO THIS SOFTWARE SHALL NOT EXCEED
+ONE UNITED STATES DOLLAR (USD $1.00).
+
+================================================================================
+SECTION 9 — GOVERNING LAW AND JURISDICTION
+================================================================================
+
+This License shall be governed by and construed in accordance with the laws of
+Sri Lanka, without regard to its conflict of laws principles. The Author
+reserves the right to seek injunctive relief, damages, or any other remedy in
+any jurisdiction worldwide in which a violation of this License occurs or has
+effect, and the courts of such jurisdiction shall have concurrent jurisdiction
+over any such claim.
+
+You consent to the personal jurisdiction of the courts of Sri Lanka for any
+dispute arising under this License.
+
+================================================================================
+SECTION 10 — COMMERCIAL LICENSING
+================================================================================
+
+If you wish to use this Software for any purpose not permitted under Section 1
+of this License — including any commercial, enterprise, or distribution use —
+you must obtain a separate written Commercial License from the Author.
+
+To inquire about a Commercial License:
+
+  Email:    sheharanayanananda@gmail.com
+  LinkedIn: https://www.linkedin.com/in/thineth-nayanananda-54815b228/
+
+The Author reserves the right to grant or deny any Commercial License request
+at their sole discretion and on terms to be negotiated individually.
+
+================================================================================
+SECTION 11 — ENTIRE AGREEMENT
+================================================================================
+
+This License constitutes the entire agreement between you and the Author with
+respect to the Software and supersedes all prior agreements, understandings,
+negotiations, and discussions, whether oral or written. If any provision of
+this License is held to be invalid or unenforceable, the remaining provisions
+shall continue in full force and effect, and the invalid or unenforceable
+provision shall be modified to the minimum extent necessary to make it valid
+and enforceable.
+
+================================================================================
+
+Copyright (c) 2026 Thineth Shehara. All rights reserved.
