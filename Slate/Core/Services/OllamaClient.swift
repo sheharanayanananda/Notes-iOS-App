@@ -141,8 +141,7 @@ final class OllamaClient {
             "stream": false,
             "options": [
                 "temperature": 0.2,
-                "top_p": 0.9,
-                "num_predict": 1024
+                "top_p": 0.9
             ]
         ]
         
@@ -199,9 +198,7 @@ final class OllamaClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(resolvedKey)", forHTTPHeaderField: "Authorization")
         
-        var options: [String: Any] = [
-            "num_predict": 1024
-        ]
+        var options: [String: Any] = [:]
         if let creativity = creativity {
             options["temperature"] = creativity
         }
@@ -269,9 +266,7 @@ final class OllamaClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(resolvedKey)", forHTTPHeaderField: "Authorization")
         
-        var options: [String: Any] = [
-            "num_predict": 1024
-        ]
+        var options: [String: Any] = [:]
         if let creativity = creativity {
             options["temperature"] = creativity
         }

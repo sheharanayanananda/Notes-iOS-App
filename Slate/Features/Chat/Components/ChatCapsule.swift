@@ -119,94 +119,107 @@ struct ChatCapsule: View {
         .animation(.easeInOut(duration: 0.3), value: isGenerating)
     }
 
+    private var topPadding: CGFloat {
+        hasAttachments ? 10 : 16
+    }
+
+    // MARK: - Attachment Previews Helper Views
+
+    @ViewBuilder
+    private var attachmentPreviews: some View {
+        if hasAttachments {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    imagePreviews
+                    documentPreviews
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var imagePreviews: some View {
+        ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, uiImage in
+            ZStack(alignment: .topTrailing) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+
+                Button(action: {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        selectedImages.remove(at: index)
+                        if selectedItems.indices.contains(index) {
+                            selectedItems.remove(at: index)
+                        }
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Color.primary, Color(uiColor: .systemBackground))
+                        .font(.system(size: 22))
+                }
+                .offset(x: 6, y: -6)
+            }
+            .padding(.top, 6)
+            .padding(.trailing, 6)
+        }
+    }
+
+    @ViewBuilder
+    private var documentPreviews: some View {
+        ForEach(selectedDocuments) { doc in
+            ZStack(alignment: .topTrailing) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Image(systemName: "doc.text.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.secondary)
+
+                    Text(doc.name)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                }
+                .padding(10)
+                .frame(width: 110, height: 72, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+                )
+
+                Button(action: {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        if let idx = selectedDocuments.firstIndex(of: doc) {
+                            selectedDocuments.remove(at: idx)
+                        }
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Color.primary, Color(uiColor: .systemBackground))
+                        .font(.system(size: 22))
+                }
+                .offset(x: 6, y: -6)
+            }
+            .padding(.top, 6)
+            .padding(.trailing, 6)
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: isMultiline ? 12 : 0) {
-
-            // MARK: Attachment Previews
-            if hasAttachments {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-
-                        // Images
-                        ForEach(Array(selectedImages.enumerated()), id: \.offset) { index, uiImage in
-                            ZStack(alignment: .topTrailing) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 72, height: 72)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                    )
-
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                        selectedImages.remove(at: index)
-                                        if selectedItems.indices.contains(index) {
-                                            selectedItems.remove(at: index)
-                                        }
-                                    }
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .symbolRenderingMode(.palette)
-                                        .foregroundStyle(Color.primary, Color(uiColor: .systemBackground))
-                                        .font(.system(size: 22))
-                                }
-                                .offset(x: 6, y: -6)
-                            }
-                            .padding(.top, 6)
-                            .padding(.trailing, 6)
-                        }
-
-                        // Documents
-                        ForEach(selectedDocuments) { doc in
-                            ZStack(alignment: .topTrailing) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Image(systemName: "doc.text.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.secondary)
-
-                                    Text(doc.name)
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(.primary)
-                                        .lineLimit(1)
-                                }
-                                .padding(10)
-                                .frame(width: 110, height: 72, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .fill(.ultraThinMaterial)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                        )
-                                )
-
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                        if let idx = selectedDocuments.firstIndex(of: doc) {
-                                            selectedDocuments.remove(at: idx)
-                                        }
-                                    }
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .symbolRenderingMode(.palette)
-                                        .foregroundStyle(Color.primary, Color(uiColor: .systemBackground))
-                                        .font(.system(size: 22))
-                                }
-                                .offset(x: 6, y: -6)
-                            }
-                            .padding(.top, 6)
-                            .padding(.trailing, 6)
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                }
-                .padding(.bottom, 8)
-            }
+            attachmentPreviews
 
             // MARK: Input Row
             HStack(alignment: .bottom, spacing: 12) {
@@ -239,7 +252,8 @@ struct ChatCapsule: View {
                 }
             }
         }
-        .padding(.vertical, 14)
+        .padding(.top, topPadding)
+        .padding(.bottom, 16)
         .padding(.horizontal, 16)
         .background(
             RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous)
@@ -349,13 +363,13 @@ struct ChatCapsule: View {
                         }
 
                         Task {
-                            if ext == "pdf" {
-                                var needsVisual = false
-                                if let textContent = DocumentParser.extractTextFromPDF(data: fileData, onNeedsVisualRendering: { needsVisual = true }) {
-                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
-                                    await MainActor.run {
-                                        withAnimation { selectedDocuments.append(attachment) }
-                                    }
+                            var textContent: String?
+                            var needsVisual = false
+                            
+                            switch ext {
+                            case "pdf":
+                                if let extracted = DocumentParser.extractTextFromPDF(data: fileData, onNeedsVisualRendering: { needsVisual = true }) {
+                                    textContent = extracted
                                 } else if needsVisual {
                                     let rendered = DocumentParser.renderPDFPagesToImages(data: fileData)
                                     await MainActor.run {
@@ -366,38 +380,20 @@ struct ChatCapsule: View {
                                         }
                                     }
                                 }
-                            } else if ext == "docx" {
-                                if let textContent = DocumentParser.extractTextFromDocx(data: fileData) {
-                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
-                                    await MainActor.run {
-                                        withAnimation { selectedDocuments.append(attachment) }
-                                    }
-                                }
-                            } else if ext == "xlsx" {
-                                if let textContent = DocumentParser.extractTextFromXlsx(data: fileData) {
-                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
-                                    await MainActor.run {
-                                        withAnimation { selectedDocuments.append(attachment) }
-                                    }
-                                }
-                            } else if ext == "rtf" {
-                                if let textContent = DocumentParser.extractTextFromRTF(data: fileData) {
-                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
-                                    await MainActor.run {
-                                        withAnimation { selectedDocuments.append(attachment) }
-                                    }
-                                }
-                            } else {
-                                if let textContent = String(data: fileData, encoding: .utf8) {
-                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
-                                    await MainActor.run {
-                                        withAnimation { selectedDocuments.append(attachment) }
-                                    }
-                                } else if let textContent = String(data: fileData, encoding: .ascii) {
-                                    let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
-                                    await MainActor.run {
-                                        withAnimation { selectedDocuments.append(attachment) }
-                                    }
+                            case "docx":
+                                textContent = DocumentParser.extractTextFromDocx(data: fileData)
+                            case "xlsx":
+                                textContent = DocumentParser.extractTextFromXlsx(data: fileData)
+                            case "rtf":
+                                textContent = DocumentParser.extractTextFromRTF(data: fileData)
+                            default:
+                                textContent = String(data: fileData, encoding: .utf8) ?? String(data: fileData, encoding: .ascii)
+                            }
+                            
+                            if let textContent {
+                                let attachment = OllamaDocumentAttachment(name: name, contentText: textContent)
+                                await MainActor.run {
+                                    withAnimation { selectedDocuments.append(attachment) }
                                 }
                             }
                         }
