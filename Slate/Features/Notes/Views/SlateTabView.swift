@@ -16,7 +16,6 @@ struct SlateTabView: View {
     @State private var noteToShare: SlateModel?
     @State private var showShareOptions = false
     @State private var showShareSheet = false
-    @Binding var showSettings: Bool
     @State private var shareItems: [Any] = []
 
     let onOpenSettings: () -> Void
@@ -25,12 +24,10 @@ struct SlateTabView: View {
 
     // MARK: - Initializer
     init(
-        showSettings: Binding<Bool>,
         onOpenSettings: @escaping () -> Void = {},
         onCreate: @escaping () -> Void = {},
         onSelect: @escaping (SlateModel) -> Void = { _ in }
     ) {
-        self._showSettings = showSettings
         self.onOpenSettings = onOpenSettings
         self.onCreate = onCreate
         self.onSelect = onSelect

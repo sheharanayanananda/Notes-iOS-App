@@ -1,118 +1,6 @@
 import Foundation
 
-enum MemoryLimit: Int, Comparable, CaseIterable, Identifiable {
-    case short = 4096      // 4K
-    case standard = 8192   // 8K
-    case detailed = 16384  // 16K
-    case maximum = 32768   // 32K
-    
-    var id: Int { self.rawValue }
-    
-    var displayName: String {
-        switch self {
-        case .short: return "Short (4K)"
-        case .standard: return "Standard (8K)"
-        case .detailed: return "Detailed (16K)"
-        case .maximum: return "Maximum (32K)"
-        }
-    }
-    
-    var subLabel: String {
-        switch self {
-        case .short: return "For quick, simple chats"
-        case .standard: return "Good for most tasks"
-        case .detailed: return "Better for referencing multiple notes"
-        case .maximum: return "Remembers extremely long chats"
-        }
-    }
-    
-    static func < (lhs: MemoryLimit, rhs: MemoryLimit) -> Bool {
-        lhs.rawValue < rhs.rawValue
-    }
-}
 
-enum ChatPreset: String, CaseIterable, Identifiable, Codable {
-    case slateLite = "Slate Lite"
-    case slateFlash = "Slate Flash"
-    case slateCreative = "Slate Creative"
-    case slateScholar = "Slate Scholar"
-    case slateCoder = "Slate Coder"
-    case slatePro = "Slate Pro"
-    
-    var id: String { self.rawValue }
-    
-    var title: String { self.rawValue }
-    
-    var modelTierName: String {
-        switch self {
-        case .slateLite: return "Lite"
-        case .slateFlash: return "Flash"
-        case .slateCreative: return "Creative"
-        case .slateScholar: return "Scholar"
-        case .slateCoder: return "Coder"
-        case .slatePro: return "Pro"
-        }
-    }
-    
-    var shortName: String {
-        switch self {
-        case .slateLite: return "Slate Lite"
-        case .slateFlash: return "Slate Flash"
-        case .slateCreative: return "Slate Creative"
-        case .slateScholar: return "Slate Scholar"
-        case .slateCoder: return "Slate Coder"
-        case .slatePro: return "Slate Pro"
-        }
-    }
-    
-    var subtitle: String {
-        switch self {
-        case .slateLite: return "Fast editing, short 4K memory"
-        case .slateFlash: return "Balanced general purpose, standard 8K memory"
-        case .slateCreative: return "Brainstorming and drafting, detailed 16K memory"
-        case .slateScholar: return "Academic research, detailed 16K memory"
-        case .slateCoder: return "Coding expert, high reasoning, 32K memory"
-        case .slatePro: return "Deep reasoning, maximum 32K memory"
-        }
-    }
-    
-    var systemPrompt: String {
-        SystemPrompts.chatPresetPrompt(for: self)
-    }
-    
-    var creativity: Double {
-        switch self {
-        case .slateLite: return 0.1
-        case .slateFlash: return 0.3
-        case .slateCreative: return 0.8
-        case .slateScholar: return 0.2
-        case .slateCoder: return 0.1
-        case .slatePro: return 0.2
-        }
-    }
-    
-    var memorySize: MemoryLimit {
-        switch self {
-        case .slateLite: return .short
-        case .slateFlash: return .standard
-        case .slateCreative: return .detailed
-        case .slateScholar: return .detailed
-        case .slateCoder: return .maximum
-        case .slatePro: return .maximum
-        }
-    }
-    
-    var thinkingLevel: String {
-        switch self {
-        case .slateLite: return "Low"
-        case .slateFlash: return "Low"
-        case .slateCreative: return "Low"
-        case .slateScholar: return "High"
-        case .slateCoder: return "High"
-        case .slatePro: return "High"
-        }
-    }
-}
 
 struct SystemPrompts {
     
@@ -147,7 +35,7 @@ struct SystemPrompts {
 
         Rules:
         1. Generate a short title (maximum 3 words). No markdown prefix characters (e.g. no # or **). Relevant emojis are allowed.
-        2. Strip conversational intro fluff (e.g. "Sure!", "Here you go:", "I can help with that.", "Of course!") and outro fluff (e.g. "Hope that helps!", "Let me know if you need anything else.", "Created by Slate AI.").
+        2. Strip conversational intro fluff (e.g. "Sure!", "Here you go:", "I can help with that.", "Of course!", "Here is your shopping list:", "Here is the summary:") and outro fluff (e.g. "Hope that helps!", "Let me know if you need anything else.", "Created by Slate AI.").
         3. PRESERVE all existing formatting exactly as-is — headings, tables, code blocks, LaTeX, alerts, checklists, numbered lists, bullet lists. The content was already formatted intelligently. Do not restructure, reorder, or reformat it.
         4. EXCEPTION — fix semantically wrong formats only: if a format is actively incorrect (e.g. a checklist used for a recovery phrase or seed phrase — where the number/sequence is critical data), correct it to the right format (numbered list in that case).
         5. Do NOT repeat the title as a heading in the body. Start the body with the first line of actual content.

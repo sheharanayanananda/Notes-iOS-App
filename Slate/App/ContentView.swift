@@ -7,8 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import Vision
-import ImageIO
 
 struct ContentView: View {
 
@@ -20,6 +18,7 @@ struct ContentView: View {
     @State private var editingNote: SlateModel? = nil
     @State private var showSettings = false
     @State private var showChatView = false
+    @State private var unreadNotesCount = 0
 
     @State private var settingsViewModel = SettingsViewModel()
 
@@ -32,11 +31,8 @@ struct ContentView: View {
                 Tab("Slate", systemImage: "scribble.variable", value: .notes) {
                     NavigationStack {
                         SlateTabView(
-                            showSettings: $showSettings,
                             onOpenSettings: {
-                                let generator = UIImpactFeedbackGenerator(style: .medium)
-                                generator.prepare()
-                                generator.impactOccurred()
+                                HapticManager.trigger(.medium)
                                 showSettings = true
                             },
                             onCreate: {
@@ -50,6 +46,7 @@ struct ContentView: View {
                         )
                     }
                 }
+                .badge(unreadNotesCount > 0 ? Text("\(unreadNotesCount)") : nil)
                 
                 Tab((editingNote == nil || editingNote?.modelContext == nil) ? "New" : "Edit", systemImage: "plus", value: .create) {
                     NavigationStack {
@@ -69,33 +66,31 @@ struct ContentView: View {
                     SettingsView(viewModel: settingsViewModel)
                 }
             }
-
-
-            if showChatView {
-                NavigationStack {
-                    ChatView(activeTab: $activeTab, editingNote: $editingNote)
+            .fullScreenCover(isPresented: $showChatView, onDismiss: {
+                if activeTab == .intelligence {
+                    activeTab = .notes
                 }
-                .transition(.move(edge: .trailing))
-                .zIndex(2)
+            }) {
+                NavigationStack {
+                    ChatView(activeTab: $activeTab)
+                }
             }
         }
         .onChange(of: activeTab) { oldValue, newValue in
+            if newValue == .notes {
+                unreadNotesCount = 0
+            }
             if newValue == .intelligence {
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.prepare()
-                generator.impactOccurred()
-                
-                withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) {
-                    showChatView = true
-                }
+                HapticManager.trigger(.medium)
+                showChatView = true
             } else if oldValue == .intelligence {
-                let generator = UIImpactFeedbackGenerator(style: .light)
-                generator.prepare()
-                generator.impactOccurred()
-                
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.92)) {
-                    showChatView = false
-                }
+                HapticManager.trigger(.light)
+                showChatView = false
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PulseNotesTab"))) { _ in
+            if activeTab != .notes {
+                unreadNotesCount += 1
             }
         }
     }

@@ -51,7 +51,6 @@ final class SettingsViewModel {
     var apiKey: String = ""
     var validationStatus: KeyValidationStatus = .empty
 
-    
     private var savedApiKey: String = ""
     private var validationTask: Task<Void, Never>?
     
@@ -60,8 +59,6 @@ final class SettingsViewModel {
     }
     
     private func loadSettings() {
-
-        
         // Read key from Keychain asynchronously to avoid blocking UI during VM init
         Task(priority: .userInitiated) {
             let key = KeychainHelper.shared.readApiKey() ?? ""
@@ -73,8 +70,6 @@ final class SettingsViewModel {
                 }
             }
         }
-        
-
     }
     
     func handleApiKeyChange() {
@@ -112,8 +107,6 @@ final class SettingsViewModel {
         }
     }
     
-
-    
     func savePendingChanges() {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if apiKey != savedApiKey {
@@ -124,8 +117,6 @@ final class SettingsViewModel {
             }
             savedApiKey = apiKey
         }
-        
-
     }
     
     private func performValidation() async {
@@ -151,6 +142,4 @@ final class SettingsViewModel {
             validationStatus = .invalid(error.localizedDescription)
         }
     }
-    
-
 }

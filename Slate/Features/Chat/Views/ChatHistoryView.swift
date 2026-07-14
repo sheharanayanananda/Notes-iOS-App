@@ -9,15 +9,14 @@ import SwiftUI
 
 struct ChatHistoryView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var chatManager = ChatManager.shared
+    @State private var chatManager = ChatManager.shared
     
     var body: some View {
         NavigationStack {
             List {
                 ForEach(chatManager.sessions.sorted(by: { $0.lastUpdated > $1.lastUpdated })) { session in
                     Button(action: {
-                        let generator = UIImpactFeedbackGenerator(style: .medium)
-                        generator.impactOccurred()
+                        HapticManager.trigger(.medium)
                         chatManager.selectSession(session)
                         dismiss()
                     }) {

@@ -2,17 +2,16 @@
 //  ChatManager.swift
 //  Slate
 //
-//  Created by Antigravity on 6/23/26.
+//  Created by Antigravity on 2026-07-14.
 //
 
-import Foundation
 import SwiftUI
-import UserNotifications
+import Observation
 import UIKit
-import Combine
+import UserNotifications
 
-struct ChatSession: Codable, Identifiable, Equatable {
-    var id: UUID
+struct ChatSession: Identifiable, Codable {
+    var id = UUID()
     var title: String
     var messages: [OllamaChatMessage]
     var lastUpdated: Date
@@ -28,26 +27,55 @@ struct ChatSession: Codable, Identifiable, Equatable {
 }
 
 @MainActor
-final class ChatManager: ObservableObject {
+@Observable
+final class ChatManager {
     static let shared = ChatManager()
     
-    @Published var messages: [OllamaChatMessage] = []
-    @Published var sessions: [ChatSession] = []
-    @Published var activeSessionId: UUID? = nil
+    var messages: [OllamaChatMessage] = []
+    var sessions: [ChatSession] = []
+    var activeSessionId: UUID? = nil
     
-    @Published var isGenerating = false
-    @Published var errorMessage: String? = nil
-    @Published var newlyGeneratedMessageId: String? = nil
+    var isGenerating = false
+    var errorMessage: String? = nil
+    var newlyGeneratedMessageId: String? = nil
+    
+    // Preset and configuration values
+    var displayedPreset: ChatPreset = .slateFlash {
+        didSet {
+            UserDefaults.standard.set(displayedPreset.rawValue, forKey: "active_chat_preset")
+            applyPreset(displayedPreset)
+            if let activeId = activeSessionId, let index = sessions.firstIndex(where: { $0.id == activeId }) {
+                if sessions[index].preset != displayedPreset {
+                    sessions[index].preset = displayedPreset
+                    saveSessions(sessions)
+                }
+            }
+        }
+    }
+    
+    var thinkingLevel: String = "Off"
+    var creativity: Double = 0.3
+    var memorySize: MemoryLimit = .standard
     
     private init() {
+        // Load stored preset first
+        if let storedValue = UserDefaults.standard.string(forKey: "active_chat_preset"),
+           let preset = ChatPreset(rawValue: storedValue) {
+            self.displayedPreset = preset
+        } else {
+            self.displayedPreset = .slateFlash
+        }
+        applyPreset(self.displayedPreset)
+        
         let loaded = loadSessions()
         self.sessions = loaded
         let sorted = loaded.sorted(by: { $0.lastUpdated > $1.lastUpdated })
         if let first = sorted.first {
             self.activeSessionId = first.id
             self.messages = first.messages
+            self.displayedPreset = first.preset
         } else {
-            let newSess = ChatSession()
+            let newSess = ChatSession(preset: self.displayedPreset)
             self.sessions = [newSess]
             self.activeSessionId = newSess.id
             self.messages = []
@@ -68,34 +96,27 @@ final class ChatManager: ObservableObject {
     
     private func loadSessions() -> [ChatSession] {
         guard let url = getSessionsFileURL() else { return [] }
+        
         if FileManager.default.fileExists(atPath: url.path) {
             do {
                 let data = try Data(contentsOf: url)
-                return try JSONDecoder().decode([ChatSession].self, from: data)
+                let decoded = try JSONDecoder().decode([ChatSession].self, from: data)
+                return decoded
             } catch {
-                print("Failed to load sessions: \(error)")
+                print("Failed to load chat sessions: \(error)")
             }
         }
         
-        // Legacy migration
+        // Migrate legacy active_chat.json to sessions format if it exists
         if let legacyUrl = getFileURL(), FileManager.default.fileExists(atPath: legacyUrl.path) {
             do {
-                let data = try Data(contentsOf: legacyUrl)
-                let legacyMessages = try JSONDecoder().decode([OllamaChatMessage].self, from: data)
+                let legacyData = try Data(contentsOf: legacyUrl)
+                let legacyMessages = try JSONDecoder().decode([OllamaChatMessage].self, from: legacyData)
                 if !legacyMessages.isEmpty {
-                    var title = "Saved Chat"
-                    if let firstUserMsg = legacyMessages.first(where: { $0.role == "user" }) {
-                        let content = firstUserMsg.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !content.isEmpty {
-                            title = String(content.prefix(30)) + (content.count > 30 ? "..." : "")
-                        }
-                    }
                     let legacySession = ChatSession(
-                        id: UUID(),
-                        title: title,
+                        title: "Migrated Chat",
                         messages: legacyMessages,
-                        lastUpdated: Date(),
-                        preset: .slateFlash
+                        lastUpdated: Date()
                     )
                     try? FileManager.default.removeItem(at: legacyUrl)
                     let sessions = [legacySession]
@@ -108,7 +129,7 @@ final class ChatManager: ObservableObject {
         }
         
         // Default session if nothing exists
-        let defaultSession = ChatSession()
+        let defaultSession = ChatSession(preset: self.displayedPreset)
         let sessions = [defaultSession]
         saveSessions(sessions)
         return sessions
@@ -129,6 +150,7 @@ final class ChatManager: ObservableObject {
         if let index = sessions.firstIndex(where: { $0.id == activeId }) {
             sessions[index].messages = messages
             sessions[index].lastUpdated = Date()
+            sessions[index].preset = displayedPreset
             
             // Auto-update title if it is the default "New Chat" or empty
             if sessions[index].title == "New Chat" || sessions[index].title.isEmpty {
@@ -148,6 +170,7 @@ final class ChatManager: ObservableObject {
         activeSessionId = session.id
         messages = session.messages
         errorMessage = nil
+        displayedPreset = session.preset
     }
     
     func startNewSession(preset: ChatPreset = .slateFlash) {
@@ -157,13 +180,14 @@ final class ChatManager: ObservableObject {
         activeSessionId = newSess.id
         messages = []
         errorMessage = nil
+        displayedPreset = preset
         saveSessions(sessions)
     }
     
     func deleteSession(id: UUID) {
         sessions.removeAll { $0.id == id }
         if activeSessionId == id {
-            let newSess = ChatSession()
+            let newSess = ChatSession(preset: self.displayedPreset)
             sessions.append(newSess)
             activeSessionId = newSess.id
             messages = []
@@ -181,11 +205,7 @@ final class ChatManager: ObservableObject {
     func sendMessage(
         chatText: String,
         selectedImages: [UIImage],
-        selectedDocuments: [OllamaDocumentAttachment],
-        displayedPreset: ChatPreset,
-        thinkingLevel: String,
-        creativity: Double,
-        memorySize: MemoryLimit
+        selectedDocuments: [OllamaDocumentAttachment]
     ) {
         let trimmed = chatText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !selectedImages.isEmpty || !selectedDocuments.isEmpty else { return }
@@ -215,15 +235,19 @@ final class ChatManager: ObservableObject {
             bgTaskIdentifier = .invalid
         }
         
+        // Capture parameter values locally so background thread does not access main-actor properties directly
+        let currentPreset = displayedPreset
+        let currentThinkingLevel = thinkingLevel
+        let currentCreativity = creativity
+        let currentMemorySize = memorySize.rawValue
+        
         Task.detached(priority: .background) {
             do {
-                let client = await MainActor.run {
-                    OllamaClient(modelName: "gemma4:31b")
-                }
+                let client = OllamaClient()
                 
                 let messagesToSend = await MainActor.run {
                     var msgs = [OllamaChatMessage]()
-                    msgs.append(OllamaChatMessage(role: "system", content: displayedPreset.systemPrompt))
+                    msgs.append(OllamaChatMessage(role: "system", content: currentPreset.systemPrompt))
                     
                     for msg in self.messages.dropLast() {
                         if let docs = msg.documents, !docs.isEmpty {
@@ -244,9 +268,9 @@ final class ChatManager: ObservableObject {
                 
                 let finalMessage = try await client.chat(
                     messages: messagesToSend,
-                    reasoningLevel: thinkingLevel,
-                    creativity: creativity,
-                    memorySize: memorySize.rawValue
+                    reasoningLevel: currentThinkingLevel,
+                    creativity: currentCreativity,
+                    memorySize: currentMemorySize
                 )
                 
                 await MainActor.run {
@@ -289,22 +313,24 @@ final class ChatManager: ObservableObject {
         }
     }
     
+    private func applyPreset(_ preset: ChatPreset) {
+        creativity = preset.creativity
+        memorySize = preset.memorySize
+        thinkingLevel = preset.thinkingLevel
+    }
+    
     private func sendLocalNotification() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
-            guard granted else { return }
-            
-            let content = UNMutableNotificationContent()
-            content.title = "Slate AI"
-            content.body = "Your AI response is ready."
-            content.sound = .default
-            
-            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
-            
-            UNUserNotificationCenter.current().add(request) { error in
-                if let error = error {
-                    print("Error scheduling local notification: \(error)")
-                }
+        let content = UNMutableNotificationContent()
+        content.title = "Slate AI"
+        content.body = "Your AI response is ready."
+        content.sound = .default
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling local notification: \(error)")
             }
         }
     }

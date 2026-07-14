@@ -101,7 +101,6 @@ struct MessageView: View {
 
 struct BlockRenderer: View {
     let block: MarkdownBlock
-    var allowsInteraction: Bool = true
     
     var body: some View {
         switch block {
@@ -120,7 +119,7 @@ struct BlockRenderer: View {
         case .thematicBreak:
             ThematicBreakView()
         case .latex(let isDisplay, let equation):
-            LaTeXMathView(equation: equation, isDisplay: isDisplay, allowsInteraction: allowsInteraction)
+            LaTeXMathView(equation: equation, isDisplay: isDisplay)
         case .alert(let type, let blocks):
             AlertBlockView(type: type, blocks: blocks)
         case .image(let caption, let urlString):
@@ -176,10 +175,7 @@ struct ImageBlockView: View {
     @Environment(\.colorScheme) private var colorScheme
     
     private var correctedURL: URL? {
-        let corrected = urlString
-            .replacingOccurrences(of: "placekitten.com", with: "placecats.com")
-            .replacingOccurrences(of: "via.placeholder.com", with: "placehold.co")
-        return URL(string: corrected)
+        URL(string: urlString)
     }
     
     var body: some View {
@@ -382,8 +378,7 @@ struct CodeBlockView: View {
                     withAnimation {
                         isCopied = true
                     }
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
+                    HapticManager.trigger(.light)
                     
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation {
@@ -540,12 +535,10 @@ struct ParagraphBlockView: View {
 struct LaTeXMathView: View {
     let equation: String
     let isDisplay: Bool
-    var allowsInteraction: Bool = true
     @State private var webViewHeight: CGFloat = 35
     
     var body: some View {
         LaTeXWebViewRepresentable(equation: equation, isDisplay: isDisplay, height: $webViewHeight)
-            .allowsHitTesting(allowsInteraction)
             .frame(height: webViewHeight)
             .padding(.vertical, isDisplay ? 4 : 0)
     }

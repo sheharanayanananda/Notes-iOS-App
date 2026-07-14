@@ -86,9 +86,7 @@ struct SettingsView: View {
 // MARK: - Main Functions
 extension SettingsView {
     private func dismissView() {
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.prepare()
-        generator.impactOccurred()
+        HapticManager.trigger(.light)
         
         viewModel.savePendingChanges()
         if let onDismiss = onDismiss {

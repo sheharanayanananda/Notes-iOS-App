@@ -50,7 +50,7 @@ struct CreateTabView: View {
                                         handleDeleteSpecialBlock(id: item.id)
                                     }
                                 ) {
-                                    BlockRenderer(block: item.block, allowsInteraction: false)
+                                    MarkdownStaticPreview(block: item.block)
                                 }
                             } else {
                                 NativeTextView(
@@ -92,34 +92,10 @@ struct CreateTabView: View {
             }
         }
         .onAppear {
-            if let note = editingNote {
-                if note.title == "ChatDraft_PendingExtraction" {
-                    extractChatNote(note)
-                } else {
-                    text = note.desc
-                    blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
-                    wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
-                }
-            } else {
-                text = ""
-                blockItems = NoteBlockUtility.splitIntoBlockItems("")
-                wasTitlePreGenerated = false
-            }
+            loadNote(editingNote)
         }
         .onChange(of: editingNote) { _, newValue in
-            if let note = newValue {
-                if note.title == "ChatDraft_PendingExtraction" {
-                    extractChatNote(note)
-                } else {
-                    text = note.desc
-                    blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
-                    wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
-                }
-            } else {
-                text = ""
-                blockItems = NoteBlockUtility.splitIntoBlockItems("")
-                wasTitlePreGenerated = false
-            }
+            loadNote(newValue)
         }
         .onChange(of: text) { _, newValue in
             if isOrganizing {
@@ -137,19 +113,7 @@ struct CreateTabView: View {
                 .disabled(isOrganizing)
             }
                         
-//            ToolbarItem(placement: .primaryAction) {
-//                if isOrganizing {
-//                    ProgressView()
-//                } else {
-//                    Button {
-//                        organizeNoteWithAI()
-//                    } label: {
-//                        Label("Organize with AI", systemImage: "sparkles")
-//                    }
-//                    .disabled(isAnimatingText || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-//                }
-//            }
-            
+
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save", systemImage: "checkmark", role: .confirm) {
                     saveNote()
@@ -213,124 +177,7 @@ extension CreateTabView {
         activeTab = .notes
     }
     
-    private func extractChatNote(_ note: SlateModel) {
-        let rawContent = note.desc
-        
-        animationTask?.cancel()
-        skeletonSessionID = UUID()
-        withAnimation(.easeInOut(duration: 0.3)) {
-            isOrganizing = true
-            isAnimatingText = false
-            text = "" // Clear text immediately to display the skeleton loader
-            blockItems = NoteBlockUtility.splitIntoBlockItems("")
-        }
-        
-        Task {
-            var extractedTitle = ""
-            var extractedBody = ""
-            var failureMessage: String? = nil
-            
-            do {
-                let client = OllamaClient()
-                let messages = SystemPrompts.noteExtractionMessages(for: rawContent)
-                let response = try await client.chat(messages: messages)
-                let responseText = response.content
-                
-                // Parse the structured LLM response
-                if let titleRange = responseText.range(of: "---TITLE---"),
-                   let bodyRange = responseText.range(of: "---BODY---") {
-                    let titleStart = titleRange.upperBound
-                    let titleEnd = bodyRange.lowerBound
-                    let parsedTitle = responseText[titleStart..<titleEnd].trimmingCharacters(in: .whitespacesAndNewlines)
-                    let parsedBody = responseText[bodyRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
-                    
-                    if !parsedTitle.isEmpty && !parsedBody.isEmpty {
-                        extractedTitle = parsedTitle
-                        extractedBody = parsedBody
-                    } else {
-                        failureMessage = "Couldn't extract a note from this response. Please try again."
-                    }
-                } else {
-                    failureMessage = "Couldn't extract a note from this response. Please try again."
-                }
-            } catch {
-                failureMessage = error.localizedDescription
-                print("Note extraction failed: \(error.localizedDescription)")
-            }
-            
-            await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    isOrganizing = false
-                }
-                
-                if let failure = failureMessage {
-                    // Surface the error clearly and dismiss the note view
-                    errorMessage = failure
-                    showErrorAlert = true
-                    cancel()
-                } else {
-                    // Apply the LLM-extracted content
-                    note.title = extractedTitle
-                    note.desc = extractedBody
-                    wasTitlePreGenerated = true
-                    animateBlocksOneByOne(extractedBody)
-                }
-            }
-        }
-    }
-    
-    private func organizeNoteWithAI() {
-        let trimmedDesc = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedDesc.isEmpty {
-            errorMessage = "Can't organize an empty note."
-            showErrorAlert = true
-            return
-        }
-        
-        animationTask?.cancel()
-        skeletonSessionID = UUID()
-        withAnimation(.easeInOut(duration: 0.3)) {
-            isOrganizing = true
-            isAnimatingText = false
-            text = "" // Clear text immediately to display the skeleton loader
-            blockItems = NoteBlockUtility.splitIntoBlockItems("")
-        }
-        
-        Task {
-            do {
-                let client = OllamaClient()
-                let organizedText = try await client.generate(
-                    prompt: trimmedDesc,
-                    system: aiSystemPrompt
-                )
-                let cleanedText = sanitizeMarkdown(organizedText)
-                if !cleanedText.isEmpty {
-                    await MainActor.run {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isOrganizing = false
-                        }
-                        animateBlocksOneByOne(cleanedText)
-                    }
-                } else {
-                    await MainActor.run {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            text = trimmedDesc
-                            isOrganizing = false
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        text = trimmedDesc
-                        isOrganizing = false
-                    }
-                    errorMessage = error.localizedDescription
-                    showErrorAlert = true
-                }
-            }
-        }
-    }
+
     
     private func cancel() {
         reset()
@@ -346,6 +193,18 @@ extension CreateTabView {
         editingNote = nil
         isAnimatingText = false
         animationTask?.cancel()
+    }
+    
+    private func loadNote(_ note: SlateModel?) {
+        if let note = note {
+            text = note.desc
+            blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
+            wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
+        } else {
+            text = ""
+            blockItems = NoteBlockUtility.splitIntoBlockItems("")
+            wasTitlePreGenerated = false
+        }
     }
     
     private func handleEditingEnded() {
@@ -388,32 +247,7 @@ extension CreateTabView {
         }
     }
     
-    private var aiSystemPrompt: String {
-        SystemPrompts.noteOrganizer
-    }
-    
-    private func sanitizeMarkdown(_ response: String) -> String {
-        var textToParse = response
-            .replacingOccurrences(of: "\r", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        if let blockRange = textToParse.range(of: "```markdown") {
-            let afterBlock = textToParse[blockRange.upperBound...]
-            if let endBlockRange = afterBlock.range(of: "```") {
-                textToParse = String(afterBlock[..<endBlockRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            } else {
-                textToParse = String(afterBlock).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        } else if let blockRange = textToParse.range(of: "```") {
-            let afterBlock = textToParse[blockRange.upperBound...]
-            if let endBlockRange = afterBlock.range(of: "```") {
-                textToParse = String(afterBlock[..<endBlockRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            } else {
-                textToParse = String(afterBlock).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-        return textToParse
-    }
+
     
     private func animateBlocksOneByOne(_ fullText: String) {
         animationTask?.cancel()
@@ -437,8 +271,7 @@ extension CreateTabView {
                 // Keep the 'text' property in sync with the current combined blocks
                 text = NoteBlockUtility.combineBlockItems(blockItems)
                 
-                let generator = UISelectionFeedbackGenerator()
-                generator.selectionChanged()
+                HapticManager.triggerSelection()
                 
                 try? await Task.sleep(nanoseconds: 120_000_000)
             }
@@ -450,84 +283,6 @@ extension CreateTabView {
     }
 }
 
-struct SkeletonLine: View {
-    let width: CGFloat
-    let delay: Double
-    @State private var entranceOpacity: Double = 0.0
-    
-    var body: some View {
-        TimelineView(.animation) { timelineContext in
-            let date = timelineContext.date
-            let timeInterval = date.timeIntervalSinceReferenceDate
-            
-            // Calculate phase from 0 to 1 based on time
-            let phase = CGFloat((timeInterval).truncatingRemainder(dividingBy: 1.8) / 1.8)
-            
-            // Calculate pulse (breathing effect) from 0 to 1 using a sine wave
-            let pulseFactor = CGFloat((sin(timeInterval * .pi / 0.6) + 1.0) / 2.0) // loops every 1.2s
-            let fillOpacity = 0.04 + (0.04 * pulseFactor) // ranges from 0.04 to 0.08
-            
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.primary.opacity(fillOpacity))
-                .frame(width: width, height: 16)
-                .overlay(
-                    GeometryReader { geo in
-                        let size = geo.size
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                .clear, 
-                                Color.primary.opacity(0.12), 
-                                Color.primary.opacity(0.04), 
-                                .clear
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: size.width / 1.2)
-                        .offset(x: -size.width + (size.width * 2) * phase)
-                    }
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .opacity(entranceOpacity)
-                .onAppear {
-                    withAnimation(.easeOut(duration: 0.45).delay(delay)) {
-                        entranceOpacity = 1.0
-                    }
-                }
-        }
-    }
-}
-
-struct SkeletonView: View {
-    let typedLinesCount: Int
-    @State private var appearanceOpacity: Double = 0.0
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            let widths: [CGFloat] = [
-                140, 300, 260, 280, 120, 240, 270, 180, 290, 250, 270, 190, 150
-            ]
-            
-            ForEach(0..<widths.count, id: \.self) { index in
-                if index >= typedLinesCount {
-                    SkeletonLine(width: widths[index], delay: Double(index) * 0.035)
-                        .transition(.opacity)
-                } else {
-                    Color.clear
-                        .frame(height: 16)
-                }
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
-        .opacity(appearanceOpacity)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.4)) {
-                appearanceOpacity = 1.0
-            }
-        }
-    }
-}
 
 // MARK: - Special Block Deletion/Merging Helpers
 extension CreateTabView {
@@ -539,8 +294,7 @@ extension CreateTabView {
         let precedingItem = blockItems[precedingIndex]
         
         if precedingItem.isSpecial {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
+            HapticManager.trigger(.medium)
             
             withAnimation(.easeInOut(duration: 0.2)) {
                 _ = blockItems.remove(at: precedingIndex)
@@ -582,8 +336,7 @@ extension CreateTabView {
         let succeedingItem = blockItems[succeedingIndex]
         
         if succeedingItem.isSpecial {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
+            HapticManager.trigger(.medium)
             
             withAnimation(.easeInOut(duration: 0.2)) {
                 _ = blockItems.remove(at: succeedingIndex)
@@ -618,8 +371,7 @@ extension CreateTabView {
         let item = blockItems[index]
         guard item.isSpecial else { return }
         
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
+        HapticManager.trigger(.medium)
         
         selectedBlockID = nil
         

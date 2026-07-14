@@ -86,8 +86,7 @@ struct SpecialBlockWrapper<Content: View>: View {
             content
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
+                    HapticManager.trigger(.light)
                     onTap()
                 }
                 .padding(4)
