@@ -125,10 +125,59 @@ struct LaTeXWebViewRepresentable: UIViewRepresentable {
         return webView
     }
 
+    private func prepareMathHTML(_ input: String) -> String {
+        var escaped = input
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+        
+        // Replace display math $$...$$ with \\[...\\]
+        let displayPattern = #"\$\$(.+?)\$\$"#
+        if let displayRegex = try? NSRegularExpression(pattern: displayPattern, options: [.dotMatchesLineSeparators]) {
+            let range = NSRange(escaped.startIndex..., in: escaped)
+            escaped = displayRegex.stringByReplacingMatches(in: escaped, options: [], range: range, withTemplate: "\\\\[$1\\\\]")
+        }
+        
+        // Replace inline math $...$ with \\(...\\)
+        let inlinePattern = #"(?<!\$)\$(?!\s)(.+?)(?<!\s)\$(?!\$)"#
+        if let inlineRegex = try? NSRegularExpression(pattern: inlinePattern, options: []) {
+            let range = NSRange(escaped.startIndex..., in: escaped)
+            escaped = inlineRegex.stringByReplacingMatches(in: escaped, options: [], range: range, withTemplate: "\\\\($1\\\\)")
+        }
+        
+        return escaped
+    }
+
     func updateUIView(_ uiView: WKWebView, context: Context) {
         context.coordinator.parent = self
         let colorHex = colorScheme == .dark ? "#FFFFFF" : "#000000"
-        let wrappedEquation = isDisplay ? "$$\(equation)$$" : "$\(equation)$"
+        
+        let wrappedEquation: String
+        if equation.contains("$") {
+            wrappedEquation = prepareMathHTML(equation)
+        } else {
+            let escaped = equation
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+            wrappedEquation = isDisplay ? "\\[\(escaped)\\]" : "\\(\(escaped)\\)"
+        }
+        
+        let containerCSS = isDisplay ? """
+            .math-container {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              overflow-x: auto;
+              white-space: nowrap;
+            }
+        """ : """
+            .math-container {
+              display: block;
+              overflow-x: auto;
+              white-space: normal;
+              word-wrap: break-word;
+              line-height: 1.4;
+            }
+        """
         
         let htmlString = """
         <!DOCTYPE html>
@@ -144,13 +193,7 @@ struct LaTeXWebViewRepresentable: UIViewRepresentable {
               color: \(colorHex);
               font-size: 16px;
             }
-            .math-container {
-              display: flex;
-              justify-content: \(isDisplay ? "center" : "flex-start");
-              align-items: center;
-              overflow-x: auto;
-              white-space: nowrap;
-            }
+            \(containerCSS)
           </style>
           <script>
             window.MathJax = {

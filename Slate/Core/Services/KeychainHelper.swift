@@ -6,15 +6,15 @@
 import Foundation
 import Security
 
-final class KeychainHelper {
-    static let shared = KeychainHelper()
+final class KeychainHelper: Sendable {
+    nonisolated static let shared = KeychainHelper()
     private init() {}
     
     private let service = "com.dayzsolutions.notes.dyz.ollama"
     private let account = "apiKey"
     
     @discardableResult
-    func saveApiKey(_ key: String) -> Bool {
+    nonisolated func saveApiKey(_ key: String) -> Bool {
         guard let data = key.data(using: .utf8) else { return false }
         
         let query: [String: Any] = [
@@ -35,7 +35,7 @@ final class KeychainHelper {
         return status == errSecSuccess
     }
     
-    func readApiKey() -> String? {
+    nonisolated func readApiKey() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -53,7 +53,7 @@ final class KeychainHelper {
         return nil
     }
     
-    func deleteApiKey() {
+    nonisolated func deleteApiKey() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

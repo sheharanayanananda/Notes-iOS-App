@@ -85,13 +85,14 @@ struct ChatBubbleView: View {
                 }
                 
                 if !message.content.isEmpty {
+                    let screenWidth = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.screen.bounds.width ?? 375
                     MessageView(messageID: message.id, content: message.content, isNew: false, isFullWidth: false)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.93))
                         .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
                         .textSelection(.enabled)
-                        .frame(maxWidth: UIScreen.main.bounds.width * 0.70, alignment: .trailing)
+                        .frame(maxWidth: screenWidth * 0.70, alignment: .trailing)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)

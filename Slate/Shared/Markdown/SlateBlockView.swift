@@ -88,11 +88,15 @@ struct SlateParagraphView: View {
     let text: String
 
     var body: some View {
-        Text(slateAttributedString(text))
-            .font(.body)
-            .lineSpacing(5)
-            .foregroundStyle(.primary)
-            .fixedSize(horizontal: false, vertical: true)
+        if text.contains("$") {
+            LaTeXMathView(equation: text, isDisplay: false)
+        } else {
+            Text(slateAttributedString(text))
+                .font(.body)
+                .lineSpacing(5)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -110,12 +114,16 @@ struct SlateChecklistView: View {
                         .foregroundStyle(item.checked ? Color.blue : Color.secondary.opacity(0.55))
                         .padding(.top, 1)
 
-                    Text(slateAttributedString(item.text))
-                        .font(.body)
-                        .lineSpacing(4)
-                        .foregroundStyle(item.checked ? .secondary : .primary)
-                        .strikethrough(item.checked, color: .secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if item.text.contains("$") {
+                        LaTeXMathView(equation: item.text, isDisplay: false)
+                    } else {
+                        Text(slateAttributedString(item.text))
+                            .font(.body)
+                            .lineSpacing(4)
+                            .foregroundStyle(item.checked ? .secondary : .primary)
+                            .strikethrough(item.checked, color: .secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
@@ -136,10 +144,14 @@ struct SlateBulletListView: View {
                         .foregroundStyle(.secondary)
                         .padding(.top, 0)
 
-                    Text(slateAttributedString(item.text))
-                        .font(.body)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if item.text.contains("$") {
+                        LaTeXMathView(equation: item.text, isDisplay: false)
+                    } else {
+                        Text(slateAttributedString(item.text))
+                            .font(.body)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(.leading, CGFloat(item.indent * 16))
             }
@@ -161,10 +173,14 @@ struct SlateNumberedListView: View {
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
 
-                    Text(slateAttributedString(item.text))
-                        .font(.body)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if item.text.contains("$") {
+                        LaTeXMathView(equation: item.text, isDisplay: false)
+                    } else {
+                        Text(slateAttributedString(item.text))
+                            .font(.body)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
@@ -293,11 +309,16 @@ struct SlateAlertCardView: View {
                     }
 
                     if !bodyText.isEmpty {
-                        Text(slateAttributedString(bodyText))
-                            .font(.subheadline)
-                            .lineSpacing(4)
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        if bodyText.contains("$") {
+                            LaTeXMathView(equation: bodyText, isDisplay: false)
+                                .padding(.vertical, 2)
+                        } else {
+                            Text(slateAttributedString(bodyText))
+                                .font(.subheadline)
+                                .lineSpacing(4)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
             }
@@ -321,20 +342,28 @@ struct SlateTableView: View {
     let rows: [[String]]
 
     var body: some View {
-        let columnWidth = max(110, (UIScreen.main.bounds.width - 32) / CGFloat(headers.count))
+        let screenWidth = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.screen.bounds.width ?? 375
+        let columnWidth = max(110, (screenWidth - 32) / CGFloat(headers.count))
         
         ScrollView(.horizontal, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 // Header row
                 HStack(spacing: 0) {
                     ForEach(Array(headers.enumerated()), id: \.offset) { colIndex, header in
-                        Text(header)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .frame(width: columnWidth, alignment: .leading)
+                        Group {
+                            if header.contains("$") {
+                                LaTeXMathView(equation: header, isDisplay: false)
+                                    .padding(.vertical, 4)
+                            } else {
+                                Text(header)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.primary)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .frame(width: columnWidth, alignment: .leading)
 
                         if colIndex < headers.count - 1 {
                             Divider()
@@ -350,13 +379,20 @@ struct SlateTableView: View {
                 ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
                     HStack(spacing: 0) {
                         ForEach(Array(row.enumerated()), id: \.offset) { colIndex, cell in
-                            Text(slateAttributedString(cell))
-                                .font(.subheadline)
-                                .lineSpacing(3)
-                                .foregroundStyle(.primary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .frame(width: columnWidth, alignment: .leading)
+                            Group {
+                                if cell.contains("$") {
+                                    LaTeXMathView(equation: cell, isDisplay: false)
+                                        .padding(.vertical, 4)
+                                } else {
+                                    Text(slateAttributedString(cell))
+                                        .font(.subheadline)
+                                        .lineSpacing(3)
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .frame(width: columnWidth, alignment: .leading)
 
                             if colIndex < row.count - 1 {
                                 Divider()

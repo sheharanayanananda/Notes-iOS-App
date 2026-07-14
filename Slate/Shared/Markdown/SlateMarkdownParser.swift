@@ -320,14 +320,40 @@ enum SlateMarkdownParser {
         return (.alert(style: style, title: nil, body: bodyLines.joined(separator: "\n")), i)
     }
 
+    private static func splitTableRow(_ line: String) -> [String] {
+        var columns: [String] = []
+        var current = ""
+        var inMath = false
+        
+        let chars = Array(line)
+        var idx = 0
+        while idx < chars.count {
+            let c = chars[idx]
+            
+            if c == "$" {
+                inMath.toggle()
+            }
+            
+            if c == "|" && !inMath {
+                columns.append(current)
+                current = ""
+            } else {
+                current.append(c)
+            }
+            idx += 1
+        }
+        columns.append(current)
+        return columns
+    }
+
     private static func parseTable(lines: [String], startIndex: Int) -> (block: SlateBlock?, nextIndex: Int) {
         var i = startIndex
         guard i < lines.count else { return (nil, startIndex + 1) }
 
         // Parse header row
         let headerLine = lines[i].trimmingCharacters(in: .whitespaces)
-        let headers = headerLine
-            .split(separator: "|")
+        let rawHeaders = splitTableRow(headerLine)
+        let headers = rawHeaders
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         i += 1
@@ -345,8 +371,8 @@ enum SlateMarkdownParser {
         while i < lines.count {
             let t = lines[i].trimmingCharacters(in: .whitespaces)
             guard t.hasPrefix("|") && t.hasSuffix("|") else { break }
-            let cells = t
-                .split(separator: "|")
+            let rawCells = splitTableRow(t)
+            let cells = rawCells
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
             rows.append(cells)
