@@ -87,10 +87,11 @@ struct MessageView: View {
 struct LaTeXMathView: View {
     let equation: String
     let isDisplay: Bool
+    var isTableStyle: Bool = false
     @State private var webViewHeight: CGFloat = 35
 
     var body: some View {
-        LaTeXWebViewRepresentable(equation: equation, isDisplay: isDisplay, height: $webViewHeight)
+        LaTeXWebViewRepresentable(equation: equation, isDisplay: isDisplay, isTableStyle: isTableStyle, height: $webViewHeight)
             .frame(height: webViewHeight)
             .padding(.vertical, isDisplay ? 4 : 0)
     }
@@ -101,6 +102,7 @@ struct LaTeXMathView: View {
 struct LaTeXWebViewRepresentable: UIViewRepresentable {
     let equation: String
     let isDisplay: Bool
+    var isTableStyle: Bool = false
     @Binding var height: CGFloat
     @Environment(\.colorScheme) private var colorScheme
 
@@ -142,7 +144,7 @@ struct LaTeXWebViewRepresentable: UIViewRepresentable {
             .replacingOccurrences(of: "\r", with: "")
         
         let renderBlock = {
-            let js = "renderContent('\(escapedEquation)', \(isDisplay ? "true" : "false"), '\(colorHex)')"
+            let js = "renderContent('\(escapedEquation)', \(isDisplay ? "true" : "false"), '\(colorHex)', \(isTableStyle ? "true" : "false"))"
             uiView.evaluateJavaScript(js, completionHandler: nil)
         }
         

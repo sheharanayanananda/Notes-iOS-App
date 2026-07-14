@@ -9,28 +9,47 @@
     body {
       font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       margin: 0;
-      padding: 2px 4px;
+      padding: 2px 0;
       background-color: transparent;
       font-size: 16px;
       line-height: 1.4;
       -webkit-user-select: text;
       user-select: text;
+      overflow: hidden;
     }
     .math-container {
       word-wrap: break-word;
       white-space: normal;
+      overflow: hidden;
     }
     .math-container.display-mode {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow-x: auto;
-      white-space: nowrap;
-      padding: 6px 0;
+      display: block;
+      text-align: center;
+      overflow: hidden;
     }
-    /* Style KaTeX display mode scrollbars */
+    .math-container.table-mode {
+      white-space: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    /* Style markdown inline tags rendered inside webview */
+    strong {
+      font-weight: 600;
+    }
+    em {
+      font-style: italic;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-size: 0.9em;
+      background-color: rgba(0, 0, 0, 0.05);
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    /* Only allow horizontal scrolling inside the actual KaTeX equation when it overflows */
     .katex-display {
       margin: 0 !important;
+      padding: 4px 0;
       overflow-x: auto;
       overflow-y: hidden;
     }
@@ -39,14 +58,49 @@
 <body>
   <div id="content" class="math-container"></div>
   <script>
-    function renderContent(rawContent, isDisplay, colorHex) {
+    function markdownToHTML(text) {
+      if (!text) return "";
+      let html = text;
+      // Escape HTML tags to prevent XSS except the ones we explicitly support like <u>
+      html = html
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/&lt;u&gt;/g, "<u>")
+        .replace(/&lt;\/u&gt;/g, "</u>");
+        
+      // Bold: **text** or __text__
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+      
+      // Italics: *text* or _text_ (excluding LaTeX backslash matches)
+      html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      
+      // Strikethrough: ~~text~~
+      html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
+      
+      // Inline code: `code`
+      html = html.replace(/`(.*?)`/g, '<code>$1</code>');
+      
+      return html;
+    }
+
+    function renderContent(rawContent, isDisplay, colorHex, isTableStyle) {
       document.body.style.color = colorHex;
+      
+      // If we are in dark mode, adjust the background color of inline code tags
+      if (colorHex === "#FFFFFF" || colorHex === "#ffffff") {
+        const style = document.createElement('style');
+        style.innerHTML = 'code { background-color: rgba(255, 255, 255, 0.15); }';
+        document.head.appendChild(style);
+      }
+      
       const el = document.getElementById('content');
       
       if (isDisplay) {
         el.className = "math-container display-mode";
         if (rawContent.includes('\\[') || rawContent.includes('$$')) {
-          el.innerHTML = rawContent;
+          el.innerHTML = markdownToHTML(rawContent);
           renderMathInElement(el, {
             delimiters: [
               { left: '$$', right: '$$', display: true },
@@ -65,8 +119,8 @@
           });
         }
       } else {
-        el.className = "math-container";
-        el.innerHTML = rawContent;
+        el.className = isTableStyle ? "math-container table-mode" : "math-container";
+        el.innerHTML = markdownToHTML(rawContent);
         renderMathInElement(el, {
           delimiters: [
             { left: '$$', right: '$$', display: true },

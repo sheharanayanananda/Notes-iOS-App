@@ -22,9 +22,13 @@ func slateAttributedString(_ raw: String) -> AttributedString {
     }
 
     // 2. Parse Markdown
+    var options = AttributedString.MarkdownParsingOptions()
+    options.interpretedSyntax = .inlineOnlyPreservingWhitespace
+    options.failurePolicy = .returnPartiallyParsedIfPossible
+    
     var attrStr = (try? AttributedString(
         markdown: processed,
-        options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        options: options
     )) ?? AttributedString(processed)
 
     // 3. Process underline <u>...</u> tags
@@ -446,7 +450,7 @@ struct SlateTableView: View {
                     ForEach(Array(headers.enumerated()), id: \.offset) { colIndex, header in
                         Group {
                             if containsRichLaTeX(header) {
-                                LaTeXMathView(equation: header, isDisplay: false)
+                                LaTeXMathView(equation: header, isDisplay: false, isTableStyle: true)
                                     .padding(.vertical, 4)
                             } else {
                                 Text(header)
@@ -475,7 +479,7 @@ struct SlateTableView: View {
                         ForEach(Array(row.enumerated()), id: \.offset) { colIndex, cell in
                             Group {
                                 if containsRichLaTeX(cell) {
-                                    LaTeXMathView(equation: cell, isDisplay: false)
+                                    LaTeXMathView(equation: cell, isDisplay: false, isTableStyle: true)
                                         .padding(.vertical, 4)
                                 } else {
                                     Text(slateAttributedString(cell))
@@ -527,35 +531,27 @@ struct SlateBlockView: View {
 
         case .checklist(let items):
             SlateChecklistView(items: items)
-                .padding(.vertical, 4)
 
         case .bulletList(let items):
             SlateBulletListView(items: items)
-                .padding(.vertical, 4)
 
         case .numberedList(let items):
             SlateNumberedListView(items: items)
-                .padding(.vertical, 4)
 
         case .codeBlock(let language, let code):
             SlateCodeBlockView(language: language, code: code)
-                .padding(.vertical, 8)
 
         case .blockquote(let text):
             SlateBlockquoteView(text: text)
-                .padding(.vertical, 6)
 
         case .alert(let style, let title, let body):
             SlateAlertCardView(style: style, title: title, bodyText: body)
-                .padding(.vertical, 8)
 
         case .table(let headers, let rows):
             SlateTableView(headers: headers, rows: rows)
-                .padding(.vertical, 8)
 
         case .horizontalRule:
             Divider()
-                .padding(.vertical, 6)
 
         case .genui(let payload):
             if let msgID = messageID {
@@ -564,7 +560,6 @@ struct SlateBlockView: View {
                     messageID: msgID,
                     genuiState: .constant(nil)
                 )
-                .padding(.vertical, 8)
             } else {
                 // In Notes context — render as static label
                 Text("Interactive component")
@@ -573,12 +568,10 @@ struct SlateBlockView: View {
                     .padding(10)
                     .background(Color.secondary.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .padding(.vertical, 4)
             }
 
         case .latex(let equation, let isDisplay):
             LaTeXMathView(equation: equation, isDisplay: isDisplay)
-                .padding(.vertical, isDisplay ? 8 : 2)
         }
     }
 }
