@@ -2,311 +2,23 @@
 //  CreateTabView.swift
 //  Slate
 //
-//  Live note editor with native formatting toolbar.
-//  No edit/preview toggle — formatting is inserted inline as markdown syntax.
+//  Live note editor with dynamic formatting blocks.
 //
 
 import SwiftUI
 import SwiftData
 import UIKit
 
-// MARK: - Formatting Toolbar
-
-struct FormattingToolbar: UIViewRepresentable {
-    @Binding var text: String
-    var textView: UITextView?
-
-    func makeUIView(context: Context) -> UIToolbar {
-        let toolbar = UIToolbar()
-        toolbar.sizeToFit()
-        toolbar.tintColor = UIColor.systemBlue
-
-        let bold     = toolbarButton(title: "B", image: "bold",           tag: 0, target: context.coordinator)
-        let italic   = toolbarButton(title: "I", image: "italic",         tag: 1, target: context.coordinator)
-        let bullet   = toolbarButton(title: "•", image: "list.bullet",    tag: 2, target: context.coordinator)
-        let numbered = toolbarButton(title: "1.", image: "list.number",   tag: 3, target: context.coordinator)
-        let check    = toolbarButton(title: "☑", image: "checkmark.circle", tag: 4, target: context.coordinator)
-        let heading  = toolbarButton(title: "H", image: "textformat.size", tag: 5, target: context.coordinator)
-        let code     = toolbarButton(title: "</>", image: "curlybraces",  tag: 6, target: context.coordinator)
-        let spacer   = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
-        let done     = UIBarButtonItem(barButtonSystemItem: .done, target: context.coordinator, action: #selector(Coordinator.dismissKeyboard))
-
-        toolbar.items = [bold, italic, UIBarButtonItem(barButtonSystemItem: .fixedSpace, target: nil, action: nil),
-                         bullet, numbered, check, heading, code, spacer, done]
-        return toolbar
-    }
-
-    func updateUIView(_ uiView: UIToolbar, context: Context) {
-        context.coordinator.parent = self
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    private func toolbarButton(title: String, image: String, tag: Int, target: AnyObject) -> UIBarButtonItem {
-        let item = UIBarButtonItem(image: UIImage(systemName: image), style: .plain, target: target, action: #selector(Coordinator.toolbarAction(_:)))
-        item.tag = tag
-        return item
-    }
-
-    class Coordinator: NSObject {
-        var parent: FormattingToolbar
-        weak var activeTextView: UITextView?
-
-        init(parent: FormattingToolbar) {
-            self.parent = parent
-        }
-
-        @objc func toolbarAction(_ sender: UIBarButtonItem) {
-            guard let tv = activeTextView ?? findActiveTextView() else { return }
-            let selectedRange = tv.selectedRange
-            let currentText = tv.text ?? ""
-            let nsText = currentText as NSString
-
-            let selectedText = nsText.substring(with: selectedRange)
-            let hasSelection = selectedRange.length > 0
-
-            var insertion = ""
-            var cursorOffset = 0
-
-            switch sender.tag {
-            case 0: // Bold
-                if hasSelection {
-                    insertion = "**\(selectedText)**"
-                    cursorOffset = insertion.count
-                } else {
-                    insertion = "****"
-                    cursorOffset = 2
-                }
-            case 1: // Italic
-                if hasSelection {
-                    insertion = "_\(selectedText)_"
-                    cursorOffset = insertion.count
-                } else {
-                    insertion = "__"
-                    cursorOffset = 1
-                }
-            case 2: // Bullet
-                let prefix = isAtLineStart(tv: tv) ? "- " : "\n- "
-                insertion = hasSelection ? prefix + selectedText : prefix
-                cursorOffset = insertion.count
-            case 3: // Numbered
-                let prefix = isAtLineStart(tv: tv) ? "1. " : "\n1. "
-                insertion = hasSelection ? prefix + selectedText : prefix
-                cursorOffset = insertion.count
-            case 4: // Checklist
-                let prefix = isAtLineStart(tv: tv) ? "- [ ] " : "\n- [ ] "
-                insertion = hasSelection ? prefix + selectedText : prefix
-                cursorOffset = insertion.count
-            case 5: // Heading
-                let prefix = isAtLineStart(tv: tv) ? "## " : "\n## "
-                insertion = hasSelection ? prefix + selectedText : prefix
-                cursorOffset = insertion.count
-            case 6: // Code
-                if hasSelection && selectedText.contains("\n") {
-                    insertion = "```\n\(selectedText)\n```"
-                    cursorOffset = insertion.count
-                } else if hasSelection {
-                    insertion = "`\(selectedText)`"
-                    cursorOffset = insertion.count
-                } else {
-                    insertion = "``"
-                    cursorOffset = 1
-                }
-            default:
-                break
-            }
-
-            let newText = nsText.replacingCharacters(in: selectedRange, with: insertion)
-            tv.text = newText
-            parent.text = newText
-
-            // Restore cursor
-            let newCursorPos = selectedRange.location + cursorOffset
-            if let newPos = tv.position(from: tv.beginningOfDocument, offset: newCursorPos) {
-                tv.selectedTextRange = tv.textRange(from: newPos, to: newPos)
-            }
-        }
-
-        @objc func dismissKeyboard() {
-            activeTextView?.resignFirstResponder()
-        }
-
-        private func isAtLineStart(tv: UITextView) -> Bool {
-            let cursorPos = tv.selectedRange.location
-            if cursorPos == 0 { return true }
-            let prevChar = (tv.text as NSString).substring(with: NSRange(location: cursorPos - 1, length: 1))
-            return prevChar == "\n"
-        }
-
-        private func findActiveTextView() -> UITextView? {
-            let activeWindow = UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap { $0.windows }
-                .first { $0.isKeyWindow }
-            return activeWindow?.rootViewController?.view.findFirstResponder() as? UITextView
-        }
-    }
-}
-
-private extension UIView {
-    func findFirstResponder() -> UIView? {
-        if isFirstResponder { return self }
-        for subview in subviews {
-            if let found = subview.findFirstResponder() { return found }
-        }
-        return nil
-    }
-}
-
-// MARK: - Native Editor Representable
-
-struct SlateTextEditorView: UIViewRepresentable {
-    @Binding var text: String
-    var toolbarCoordinator: FormattingToolbar.Coordinator?
-
-    func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
-        tv.delegate = context.coordinator
-        tv.font = UIFont.preferredFont(forTextStyle: .body)
-        tv.adjustsFontForContentSizeCategory = true
-        tv.backgroundColor = .clear
-        tv.textContainerInset = UIEdgeInsets(top: 16, left: 16, bottom: 120, right: 16)
-        tv.textColor = UIColor.label
-        tv.allowsEditingTextAttributes = false
-        tv.autocorrectionType = .yes
-        tv.autocapitalizationType = .sentences
-
-        // Attach the formatting toolbar
-        let toolbar = UIToolbar()
-        toolbar.sizeToFit()
-        toolbar.tintColor = UIColor.systemBlue
-        toolbar.items = buildToolbarItems(coordinator: context.coordinator)
-        tv.inputAccessoryView = toolbar
-
-        context.coordinator.textView = tv
-        return tv
-    }
-
-    func updateUIView(_ uiView: UITextView, context: Context) {
-        if uiView.text != text {
-            uiView.text = text
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    private func buildToolbarItems(coordinator: Coordinator) -> [UIBarButtonItem] {
-        func btn(_ image: String, tag: Int) -> UIBarButtonItem {
-            let item = UIBarButtonItem(image: UIImage(systemName: image), style: .plain,
-                                      target: coordinator, action: #selector(Coordinator.format(_:)))
-            item.tag = tag
-            return item
-        }
-        let spacer = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
-        let done   = UIBarButtonItem(barButtonSystemItem: .done, target: coordinator, action: #selector(Coordinator.done))
-        return [
-            btn("bold", tag: 0),
-            btn("italic", tag: 1),
-            btn("list.bullet", tag: 2),
-            btn("list.number", tag: 3),
-            btn("checkmark.circle", tag: 4),
-            btn("textformat.size", tag: 5),
-            btn("curlybraces", tag: 6),
-            spacer,
-            done
-        ]
-    }
-
-    class Coordinator: NSObject, UITextViewDelegate {
-        var parent: SlateTextEditorView
-        weak var textView: UITextView?
-
-        init(parent: SlateTextEditorView) {
-            self.parent = parent
-        }
-
-        func textViewDidChange(_ textView: UITextView) {
-            parent.text = textView.text
-        }
-
-        @objc func done() {
-            textView?.resignFirstResponder()
-        }
-
-        @objc func format(_ sender: UIBarButtonItem) {
-            guard let tv = textView else { return }
-            let selectedRange = tv.selectedRange
-            let nsText = tv.text as NSString
-            let selectedText = nsText.substring(with: selectedRange)
-            let hasSelection = selectedRange.length > 0
-
-            var insertion = ""
-            var cursorOffset = 0
-
-            switch sender.tag {
-            case 0: // Bold
-                insertion = hasSelection ? "**\(selectedText)**" : "****"
-                cursorOffset = hasSelection ? insertion.count : 2
-            case 1: // Italic
-                insertion = hasSelection ? "_\(selectedText)_" : "__"
-                cursorOffset = hasSelection ? insertion.count : 1
-            case 2: // Bullet
-                let prefix = atLineStart(tv: tv) ? "- " : "\n- "
-                insertion = prefix + (hasSelection ? selectedText : "")
-                cursorOffset = insertion.count
-            case 3: // Numbered
-                let prefix = atLineStart(tv: tv) ? "1. " : "\n1. "
-                insertion = prefix + (hasSelection ? selectedText : "")
-                cursorOffset = insertion.count
-            case 4: // Checklist
-                let prefix = atLineStart(tv: tv) ? "- [ ] " : "\n- [ ] "
-                insertion = prefix + (hasSelection ? selectedText : "")
-                cursorOffset = insertion.count
-            case 5: // Heading (H2)
-                let prefix = atLineStart(tv: tv) ? "## " : "\n## "
-                insertion = prefix + (hasSelection ? selectedText : "")
-                cursorOffset = insertion.count
-            case 6: // Code
-                if hasSelection && selectedText.contains("\n") {
-                    insertion = "```\n\(selectedText)\n```"
-                } else if hasSelection {
-                    insertion = "`\(selectedText)`"
-                } else {
-                    insertion = "``"
-                    cursorOffset = 1
-                }
-                if cursorOffset == 0 { cursorOffset = insertion.count }
-            default: break
-            }
-
-            let newText = nsText.replacingCharacters(in: selectedRange, with: insertion)
-            tv.text = newText
-            parent.text = newText
-
-            let newCursorPos = selectedRange.location + cursorOffset
-            if let pos = tv.position(from: tv.beginningOfDocument, offset: min(newCursorPos, newText.count)),
-               let range = tv.textRange(from: pos, to: pos) {
-                tv.selectedTextRange = range
-            }
-        }
-
-        private func atLineStart(tv: UITextView) -> Bool {
-            let loc = tv.selectedRange.location
-            guard loc > 0 else { return true }
-            return (tv.text as NSString).substring(with: NSRange(location: loc - 1, length: 1)) == "\n"
-        }
-    }
-}
-
 // MARK: - Create Tab View
 
 struct CreateTabView: View {
+    // MARK: - Properties
     @State private var text: String = ""
-
+    @State private var blockItems: [NoteBlockItem] = []
+    @State private var focusedBlockID: UUID? = nil
+    @State private var cursorPosition: Int? = nil
+    @State private var selectedBlockID: UUID? = nil
+    
     @Binding var editingNote: SlateModel?
     @Binding var activeTab: ContentView.TabIdentifier
 
@@ -318,36 +30,84 @@ struct CreateTabView: View {
     @State private var wasTitlePreGenerated: Bool = false
 
     var body: some View {
-        SlateTextEditorView(text: $text)
-            .onAppear { loadNote(editingNote) }
-            .onChange(of: editingNote) { _, newValue in loadNote(newValue) }
-            .navigationTitle(navTitle)
-            .toolbarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark", role: .cancel) { cancel() }
-                        .disabled(isOrganizing)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if isOrganizing {
-                        ProgressView()
-                    } else {
-                        Button("Save", systemImage: "checkmark", role: .confirm) { saveNote() }
-                            .keyboardShortcut(.defaultAction)
-                            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        ZStack(alignment: .topLeading) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach($blockItems) { $item in
+                        Group {
+                            if item.isSpecial {
+                                SpecialBlockWrapper(
+                                    isSelected: selectedBlockID == item.id,
+                                    onTap: {
+                                        selectedBlockID = item.id
+                                        focusedBlockID = nil
+                                    },
+                                    onBackspace: {
+                                        handleDeleteSpecialBlock(id: item.id)
+                                    }
+                                ) {
+                                    // Render formatted premium components natively inside editor!
+                                    SlateBlockView(block: item.block)
+                                }
+                            } else {
+                                NativeTextView(
+                                    id: item.id,
+                                    text: $item.rawText,
+                                    focusedBlockID: $focusedBlockID,
+                                    cursorPosition: $cursorPosition,
+                                    onEditingEnded: { handleEditingEnded() },
+                                    onBackspaceAtStart: {
+                                        handleBackspaceAtStart(item: item)
+                                    },
+                                    onDeleteAtEnd: {
+                                        handleDeleteAtEnd(item: item)
+                                    }
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .simultaneousGesture(TapGesture().onEnded {
+                                    selectedBlockID = nil
+                                })
+                            }
+                        }
                     }
                 }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
             }
-            .alert("Empty Note", isPresented: $showEmptyWarning) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Can't save an empty note.")
+        }
+        .onAppear {
+            loadNote(editingNote)
+        }
+        .onChange(of: editingNote) { _, newValue in
+            loadNote(newValue)
+        }
+        .navigationTitle(navTitle)
+        .toolbarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", systemImage: "xmark", role: .cancel) { cancel() }
+                    .disabled(isOrganizing)
             }
-            .alert("Organizer Error", isPresented: $showErrorAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(errorMessage ?? "An unknown error occurred.")
+            ToolbarItem(placement: .confirmationAction) {
+                if isOrganizing {
+                    ProgressView()
+                } else {
+                    Button("Save", systemImage: "checkmark", role: .confirm) { saveNote() }
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(blockItems.isEmpty || (blockItems.count == 1 && blockItems[0].rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                }
             }
+        }
+        .alert("Empty Note", isPresented: $showEmptyWarning) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Can't save an empty note.")
+        }
+        .alert("Organizer Error", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred.")
+        }
     }
 
     private var navTitle: String {
@@ -361,6 +121,7 @@ struct CreateTabView: View {
 
 extension CreateTabView {
     private func saveNote() {
+        text = NoteBlockUtility.combineBlockItems(blockItems)
         let trimmedDesc = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDesc.isEmpty { showEmptyWarning = true; return }
 
@@ -396,17 +157,27 @@ extension CreateTabView {
 extension CreateTabView {
     private func reset() {
         text = ""
+        blockItems = []
+        focusedBlockID = nil
+        cursorPosition = nil
+        selectedBlockID = nil
         editingNote = nil
     }
 
     private func loadNote(_ note: SlateModel?) {
         if let note = note {
             text = note.desc
+            blockItems = NoteBlockUtility.splitIntoBlockItems(note.desc)
             wasTitlePreGenerated = !note.title.isEmpty && note.title != "New Note"
         } else {
             text = ""
+            blockItems = NoteBlockUtility.splitIntoBlockItems("")
             wasTitlePreGenerated = false
         }
+    }
+
+    private func handleEditingEnded() {
+        text = NoteBlockUtility.combineBlockItems(blockItems)
     }
 
     private func generateInitialTitle(from text: String) -> String {
@@ -427,5 +198,146 @@ extension CreateTabView {
         } catch {
             print("Failed to generate title: \(error.localizedDescription)")
         }
+    }
+}
+
+// MARK: - Special Block Deletion & Merging Helpers
+
+extension CreateTabView {
+    private func handleBackspaceAtStart(item: NoteBlockItem) {
+        guard let index = blockItems.firstIndex(where: { $0.id == item.id }) else { return }
+        guard index > 0 else { return }
+        
+        let precedingIndex = index - 1
+        let precedingItem = blockItems[precedingIndex]
+        
+        if precedingItem.isSpecial {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            
+            withAnimation(.easeInOut(duration: 0.2)) {
+                _ = blockItems.remove(at: precedingIndex)
+            }
+            
+            let newPrecedingIndex = precedingIndex - 1
+            if newPrecedingIndex >= 0 {
+                let aboveItem = blockItems[newPrecedingIndex]
+                if !aboveItem.isSpecial {
+                    let currentBlockIndex = precedingIndex
+                    let currentItem = blockItems[currentBlockIndex]
+                    
+                    let originalLength = aboveItem.rawText.count
+                    let mergedText = aboveItem.rawText + (currentItem.rawText.isEmpty ? "" : "\n" + currentItem.rawText)
+                    
+                    blockItems[newPrecedingIndex].rawText = mergedText
+                    blockItems.remove(at: currentBlockIndex)
+                    
+                    focusedBlockID = aboveItem.id
+                    cursorPosition = originalLength
+                } else {
+                    focusedBlockID = item.id
+                    cursorPosition = 0
+                }
+            } else {
+                focusedBlockID = item.id
+                cursorPosition = 0
+            }
+            
+            text = NoteBlockUtility.combineBlockItems(blockItems)
+        }
+    }
+    
+    private func handleDeleteAtEnd(item: NoteBlockItem) {
+        guard let index = blockItems.firstIndex(where: { $0.id == item.id }) else { return }
+        guard index < blockItems.count - 1 else { return }
+        
+        let succeedingIndex = index + 1
+        let succeedingItem = blockItems[succeedingIndex]
+        
+        if succeedingItem.isSpecial {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            
+            withAnimation(.easeInOut(duration: 0.2)) {
+                _ = blockItems.remove(at: succeedingIndex)
+            }
+            
+            if succeedingIndex < blockItems.count {
+                let belowItem = blockItems[succeedingIndex]
+                if !belowItem.isSpecial {
+                    let originalLength = item.rawText.count
+                    let mergedText = item.rawText + (belowItem.rawText.isEmpty ? "" : "\n" + belowItem.rawText)
+                    
+                    blockItems[index].rawText = mergedText
+                    blockItems.remove(at: succeedingIndex)
+                    
+                    focusedBlockID = item.id
+                    cursorPosition = originalLength
+                } else {
+                    focusedBlockID = item.id
+                    cursorPosition = item.rawText.count
+                }
+            } else {
+                focusedBlockID = item.id
+                cursorPosition = item.rawText.count
+            }
+            
+            text = NoteBlockUtility.combineBlockItems(blockItems)
+        }
+    }
+    
+    private func handleDeleteSpecialBlock(id: UUID) {
+        guard let index = blockItems.firstIndex(where: { $0.id == id }) else { return }
+        let item = blockItems[index]
+        guard item.isSpecial else { return }
+        
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        
+        selectedBlockID = nil
+        
+        var targetFocusBlockID: UUID? = nil
+        var targetCursorPos: Int? = nil
+        
+        let hasAboveText = index > 0 && !blockItems[index - 1].isSpecial
+        let hasBelowText = index < blockItems.count - 1 && !blockItems[index + 1].isSpecial
+        
+        if hasAboveText && hasBelowText {
+            let aboveItem = blockItems[index - 1]
+            let belowItem = blockItems[index + 1]
+            let originalLength = aboveItem.rawText.count
+            let mergedText = aboveItem.rawText + (belowItem.rawText.isEmpty ? "" : "\n" + belowItem.rawText)
+            
+            blockItems[index - 1].rawText = mergedText
+            blockItems.remove(at: index + 1)
+            blockItems.remove(at: index)
+            
+            targetFocusBlockID = aboveItem.id
+            targetCursorPos = originalLength
+        } else if hasAboveText {
+            targetFocusBlockID = blockItems[index - 1].id
+            targetCursorPos = blockItems[index - 1].rawText.count
+            blockItems.remove(at: index)
+        } else if hasBelowText {
+            targetFocusBlockID = blockItems[index + 1].id
+            targetCursorPos = 0
+            blockItems.remove(at: index)
+        } else {
+            blockItems.remove(at: index)
+        }
+        
+        if blockItems.isEmpty {
+            let newTextItem = NoteBlockItem(isSpecial: false, rawText: "", block: .paragraph(""))
+            blockItems.append(newTextItem)
+            targetFocusBlockID = newTextItem.id
+            targetCursorPos = 0
+        }
+        
+        if let focusID = targetFocusBlockID {
+            focusedBlockID = focusID
+            cursorPosition = targetCursorPos
+        }
+        
+        text = NoteBlockUtility.combineBlockItems(blockItems)
     }
 }
